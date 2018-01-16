@@ -1,6 +1,6 @@
 # Seurat GenePattern Python Notebook
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=https%3A%2F%2Fgithub.com%2Fckmah%2Fseurat_python_notebook%2Fblob%2Fmaster%2Fnotebooks%2F2017-11-07-cm-python-seurat-notebook.ipynb)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=notebooks%2F2017-11-07-cm-python-seurat-notebook.ipynb)
 
 ## Instructions
 
