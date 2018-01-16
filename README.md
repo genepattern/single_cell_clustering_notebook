@@ -25,6 +25,6 @@
 
 ## R Packages
 
-- Seurat 2.1.0
+- [Seurat >= 2.1.0](http://satijalab.org/seurat/install.html)
 - DESeq2 1.18.1 (optional)
 - MAST 1.4.0 (optional)
