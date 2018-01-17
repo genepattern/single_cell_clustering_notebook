@@ -1,13 +1,9 @@
 #!/bin/bash
-
 jupyter nbextension enable --py widgetsnbextension
 
 jupyter nbextension install --py nbtools
-
 jupyter nbextension enable --py nbtools
 
 jupyter nbextension install --py genepattern
-
 jupyter nbextension enable --py genepattern
-
 jupyter serverextension enable --py genepattern
