@@ -1,5 +1,3 @@
-import warnings
-
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,19 +10,9 @@ from matplotlib.ticker import MaxNLocator
 
 import plotly.offline as py
 import plotly.tools as tls
-import rpy2.robjects as robjects
 import scanpy.api as sc
-from plotly import graph_objs as go
-from rpy2.rinterface import RRuntimeWarning
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
 
 py.init_notebook_mode()
-
-pandas2ri.activate()
-
-
-CONFIG = {'showLink': False}
 
 # -------------------- LOAD DATASET --------------------
 
