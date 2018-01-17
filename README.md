@@ -1,6 +1,6 @@
 # Single-cell RNA-seq Clustering Analysis GenePattern Notebook
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/scanpy_refactor?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%2FRNA-seq%2FClustering%2FAnalysis.ipynb) `scanpy_refactor` branch only
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/scanpy_refactor?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb) `scanpy_refactor` branch only
 
 ## Python Packages
 
