@@ -1,6 +1,0 @@
-name: seurat-environment
-channels:
-    - conda-forge
-    - r
-dependencies:
-    - r-base=3.4.1
