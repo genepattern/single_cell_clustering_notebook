@@ -7,11 +7,15 @@ Try out the notebook by launching the binder above. It may be slow to launch whi
 # Local Installation
 1. Install required python packages with:
 <br>
-`pip install -r requirements.txt`
+```bash
+pip install -r requirements.txt
+```
 2. Run the post install script.
 <br>
-`bash postBuild`
-3. Launch Jupyter Notebook to open the notebook titled `Single Cell RNA-seq Clustering Analysis.ipynb`
+```bash
+bash postBuild
+```
+3. Launch Jupyter Notebook to open the notebook titled [`Single Cell RNA-seq Clustering Analysis.ipynb`](../notebooks/Single\ Cell\ RNA-seq\ Clustering\ Analysis.ipynb)
 
 ### Python Packages
 
