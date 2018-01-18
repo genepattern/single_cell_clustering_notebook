@@ -1,4 +1,9 @@
 #!/bin/bash
+cd scripts
+git clone https://github.com/DmitryUlyanov/Multicore-TSNE.git
+cd Multicore-TSNE
+pip install .
+
 jupyter nbextension enable --py --user widgetsnbextension
 
 jupyter nbextension install --py --user nbtools

@@ -24,3 +24,4 @@ Try out the notebook by launching the binder above. It may be slow to launch whi
 - ipywidgets 7.1.0
 - notebook 5.2.2
 - scanpy 0.4.2
+- louvain 0.6.1
