@@ -1,8 +1,19 @@
 # Single-cell RNA-seq Clustering Analysis GenePattern Notebook
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/scanpy_refactor?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb) `scanpy_refactor` branch only
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
-## Python Packages
+Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
+
+# Local Installation
+1. Install required python packages with:
+<br>
+`pip install -r requirements.txt`
+2. Run the post install script.
+<br>
+`bash postBuild`
+3. Launch Jupyter Notebook to open the notebook titled `Single Cell RNA-seq Clustering Analysis.ipynb`
+
+### Python Packages
 
 - matplotlib 2.0.2
 - numpy 1.14.0
