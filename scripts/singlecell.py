@@ -1,18 +1,28 @@
+from decimal import Decimal
+
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.stats as st
 import seaborn as sns
 from ipywidgets import HTML, Layout
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
+from statsmodels.sandbox.stats.multicomp import multipletests
 
 import plotly.offline as py
 import plotly.tools as tls
 import scanpy.api as sc
+from beakerx import *
 
 py.init_notebook_mode()
+
+# -------------------- HELPERS --------------------
+def _create_progress_bar():
+    layout = Layout(width='200px', height='20px', display='absolute', top='300px', left='50%', margin='-100px 0 0 0')
+    return HTML('<progress></progress>', layout=layout)
 
 # -------------------- LOAD DATASET --------------------
 
@@ -143,10 +153,7 @@ def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_me
     # Per-cell normalize the data matrix $\mathbf{X}$, identify highly-variable genes and compute logarithm.
     sc.pp.normalize_per_cell(data, counts_per_cell_after=1e4)
     filter_result = sc.pp.filter_genes_dispersion(
-        data.X, min_mean=0.1, max_mean=8, min_disp=1)
-
-    # Actually do the filtering.
-    data = data[:, filter_result.gene_subset]
+        data, min_mean=0.1, max_mean=8, min_disp=1)
 
     # Logarithmize the data.
     sc.pp.log1p(data)
@@ -180,7 +187,7 @@ def perform_clustering_analysis(data):
 
     elbow_output = widgets.Output()
     pcs = 10
-    resolution = 0.9
+    resolution = 1.3
     perplexity = 13
 
     def plot_output_callback(e):
@@ -226,13 +233,20 @@ def perform_clustering_analysis(data):
 
     # "Go" button to plot on click
     def plot_tsne_callback(button):
-        # show tSNE plot
         plot_output.clear_output()
-        with plot_output:
-            _run_tsne(data, pc_slider.value, res_slider.value, perp_slider.value)
+        progress_bar = _create_progress_bar()
 
+        with plot_output:
+            # show progress bar
+            display(progress_bar)
+
+            # perform tSNE calculation and plot
+            _run_tsne(data, pc_slider.value, res_slider.value, perp_slider.value)
             py_fig = _plot_tsne(data)
             py.iplot(py_fig, show_link=False)
+
+            # close progress bar
+            progress_bar.close()
 
         _markers_ui(data, markers_ui_output)
 
@@ -276,8 +290,8 @@ def _run_pca(data):
 
 
 def _run_tsne(data, pcs, resolution, perplexity):
-    sc.tl.tsne(data, n_pcs=pcs, perplexity=perplexity, learning_rate=200, n_jobs=8)
-    sc.tl.louvain(data, n_neighbors=40, resolution=resolution, recompute_graph=True)
+    sc.tl.tsne(data, n_pcs=pcs, perplexity=perplexity, learning_rate=1000, n_jobs=8)
+    sc.tl.louvain(data, n_neighbors=10, resolution=resolution, recompute_graph=True)
 
     return data
 
@@ -331,36 +345,69 @@ def _markers_ui(data, markers_ui_output):
         test_dropdown = widgets.Dropdown(
             options=test_options, value='wilcoxon', description='Test to use')
 
+        # -------------------- MARKERS PLOT --------------------
+
+        # Marker Plot UI
+        marker_text_input = widgets.Text(description='Gene')
+        marker_text_button = widgets.Button(description='Plot')
+        marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
+
+        def plot_marker(e):
+            gene = marker_text_input.value
+            fig = _plot_tsne_markers(data, gene)
+
+            markers_plot_output.clear_output()
+            progress_bar = _create_progress_bar()
+
+            with markers_plot_output:
+                display(progress_bar)
+
+                # Plot marker expression on tSNE plot
+                py.iplot_mpl(fig, show_link=False)
+
+                # Plot violinplot of marker expression in each cluster
+                # ax = sc.pl.violin(data, gene.split(',')[0], group_by='louvain_groups')
+                progress_bar.close()
+
+        marker_text_button.on_click(plot_marker)
+
+        header = widgets.HTML(
+            '<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
+        plot_markers_box = widgets.VBox(
+            [header, marker_input_box, markers_plot_output], layout=Layout(width='62%'))
+
         # -------------------- CUSTOM COMPARISON --------------------
         # selection groups
-        select_1_header = widgets.HTML('<h4>Group 1</h4>')
-        select_2_header = widgets.HTML('<h4>Group 2</h4>')
-        select_1 = widgets.SelectMultiple(options=cluster_names, value=[
-                                          '0'], layout=Layout(max_width='100%', margin='2px'))
-        select_2 = widgets.SelectMultiple(options=cluster_names, value=[
-                                          _ for _ in cluster_names if _ != '0'], layout=Layout(max_width='100%', margin='2px'))
-        select_1_box = widgets.VBox([select_1_header, select_1], layout=Layout(max_width='50%', margin='8px'))
-        select_2_box = widgets.VBox([select_2_header, select_2], layout=Layout(max_width='50%', margin='8px'))
-        selection_box = widgets.HBox([select_1_box, select_2_box])
+        # select_1_header = widgets.HTML('<h4>Group 1</h4>')
+        # select_2_header = widgets.HTML('<h4>Group 2</h4>')
+        select_1 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 1')
+        select_2 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 2')
+        # select_1_box = widgets.VBox([select_1_header, select_1], layout=Layout(max_width='50%', margin='8px'))
+        # select_2_box = widgets.VBox([select_2_header, select_2], layout=Layout(max_width='50%', margin='8px'))
+        selection_box = widgets.VBox([select_1, select_2])
 
         # Go button
         markers_go_button1 = widgets.Button(description='Calculate Markers')
-        markers_df_output = widgets.Output(layout=Layout(max_height='400px', overflow_y='scroll'))
+        markers_df_output = widgets.Output(layout=Layout(max_height='800px', overflow_y='scroll'))
 
         select_header = widgets.HTML(
-            '<p>Highlight clusters to show markers for Group 1 vs. Group 2. Multiple clusters can be selected with shift and/or ctrl (or command) pressed and mouse clicks or arrow keys.</p>')
+            '<p>Choose two clusters to compare markers between.</p>')
         custom_markers_box = widgets.VBox([select_header, test_dropdown, selection_box,
                                            markers_go_button1, markers_df_output])
 
         def markers_df_callback(button):
             markers = _find_cluster_markers(data,
-                                            list(select_1.value),
-                                            list(select_2.value),
-                                            test_dropdown.value)
+                                            select_1.value,
+                                            select_2.value,
+                                            test_dropdown.value,
+                                            marker_text_input)
 
             # Display df
             markers_df_output.clear_output()
             with markers_df_output:
+                if type(markers) is TableDisplay:
+                    display(
+                        HTML('<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value)))
                 display(markers)
 
         markers_go_button1.on_click(markers_df_callback)
@@ -380,11 +427,13 @@ def _markers_ui(data, markers_ui_output):
             for cluster in cluster_names:
                 df = _find_cluster_markers(data,
                                            cluster,
-                                           [c for c in cluster_names if c != cluster],
-                                           test_all_dropdown.value)
-                df_outputs[cluster] = widgets.Output(layout=Layout(max_height='400px', overflow_y='scroll'))
+                                           'rest',
+                                           test_all_dropdown.value,
+                                           marker_text_input)
+                df_outputs[cluster] = widgets.Output(layout=Layout(max_height='800px', overflow_y='scroll'))
 
                 with df_outputs[cluster]:
+                    display(HTML('<h4>Cluster {} Markers</h4>'.format(cluster)))
                     display(df)
 
                 marker_df.append(df_outputs[cluster])
@@ -394,41 +443,50 @@ def _markers_ui(data, markers_ui_output):
             for i, c in enumerate(cluster_names):
                 df_tabs.set_title(i, c)
 
+
+
         all_markers_callback()
         all_markers_button.on_click(all_markers_callback)
-
-        # -------------------- MARKERS PLOT --------------------
-
-        # Marker Plot UI
-        marker_text_input = widgets.Text(description='Gene')
-        marker_text_button = widgets.Button(description='Plot')
-        marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
-
-        def plot_marker(e):
-            gene = marker_text_input.value
-            fig = _plot_tsne_markers(data, gene)
-            markers_plot_output.clear_output()
-            with markers_plot_output:
-                py.iplot_mpl(fig, show_link=False)
-
-        marker_text_button.on_click(plot_marker)
-
-        header = widgets.HTML(
-            '<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
-        plot_markers_box = widgets.VBox(
-            [header, marker_input_box, markers_plot_output], layout=Layout(width='62%'))
 
         markers_ui_box = widgets.VBox([all_markers_box, df_tabs], layout=Layout(width='38%'))
         markers_all_box = widgets.HBox([markers_ui_box, plot_markers_box])
         display(markers_all_box)
 
+
     return markers_ui_output
 
 
-def _find_cluster_markers(data, ident_1, ident_2, test):
-    sc.tl.rank_genes_groups(data, 'louvain_groups', groups=ident_1, reference='rest',
-                            use_raw=False, n_genes=min(100, len(data.var_names)), test_type=test)
-    return pd.DataFrame(data.uns['rank_genes_groups_gene_names'])
+def _find_cluster_markers(data, ident_1, ident_2, test, marker_text_input):
+    if ident_1 == ident_2:
+        return HTML('Error. The selected clusters must be different clusters.')
+
+    # Sanitize input for scanpy method
+    ident_1 = [str(ident_1)]
+    ident_2 = str(ident_2)
+
+    # Perform test
+    sc.tl.rank_genes_groups(data, 'louvain_groups', groups=ident_1, reference=ident_2,
+                            use_raw=True, n_genes=min(100, len(data.var_names)), test_type=test)
+
+    # Format results
+    marker_names = [x[0] for x in data.uns['rank_genes_groups_gene_names']]
+    marker_scores = [x[0] for x in data.uns['rank_genes_groups_gene_scores']]
+
+    # Convert to p-values
+    marker_scores = st.norm.sf(np.abs(marker_scores))
+    marker_scores = multipletests(marker_scores, method='fdr_bh')[1].tolist()
+    marker_scores = ['%.3G' % x for x in marker_scores]
+
+    results = pd.DataFrame([marker_names, marker_scores], index=['Gene', 'Adj p-value']).T
+    results.set_index(['Gene'], inplace=True)
+    table = TableDisplay(results)
+
+    def add_gene(row, column, display):
+        display(marker_text_input.value)
+        marker_text_input.value = marker_text_input.value + ', {}'.format(tabledisplay.values[row][column])
+    table.setDoubleClickAction(add_gene)
+
+    return TableDisplay(results)
 
 
 def _plot_tsne_markers(data, gene=''):
@@ -440,11 +498,11 @@ def _plot_tsne_markers(data, gene=''):
         gene_list = [x.strip() for x in gene_list]
 
         if type(gene_list) == list:
-            gene_locs = [data.var_names.get_loc(x) for x in gene_list]
+            gene_locs = [data.raw.var_names.get_loc(x) for x in gene_list]
         else:
-            gene_locs = [data.var_names.get_loc[gene_list]]
+            gene_locs = [data.raw.var_names.get_loc[gene_list]]
 
-        gene_values = pd.DataFrame(data.X[:, gene_locs]).T
+        gene_values = pd.DataFrame(data.raw.X[:, gene_locs]).T
         gene_values.index = gene_list
 
     # Declare grey to red colormap

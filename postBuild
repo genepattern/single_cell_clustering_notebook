@@ -4,6 +4,8 @@ git clone https://github.com/DmitryUlyanov/Multicore-TSNE.git
 cd Multicore-TSNE
 pip install .
 
+conda install -y -c conda-forge beakerx
+
 jupyter nbextension enable --py --user widgetsnbextension
 
 jupyter nbextension install --py --user nbtools
