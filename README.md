@@ -1,30 +1,29 @@
-# Seurat GenePattern Python Notebook
+# Single-cell RNA-seq Clustering Analysis GenePattern Notebook
 
-## Instructions
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
-1. Install dependencies
-2. The notebook for testing is `2017-11-07-cm-python-seurat-notebook.ipynb`
+Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
 
-## Software Version
+# Local Installation
+1. Install required python packages with:
+```bash
+pip install -r requirements.txt
+```
+2. Run the post install script.
+```bash
+bash postBuild
+```
+3. Launch Jupyter Notebook to open the notebook titled [Single Cell RNA-seq Clustering Analysis.ipynb](notebooks/Single%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
-- Python 3.6.1
-- IPython 6.2.1
-- R 3.4.1
-
-## Python Packages
+### Python Packages
 
 - matplotlib 2.0.2
 - numpy 1.14.0
 - pandas 0.22.0
 - seaborn 0.8.0
 - plotly 2.2.1
-- rpy2 2.9.1
-- genepattern 0.6.8
+- genepattern-notebook 0.6.8
 - ipywidgets 7.1.0
 - notebook 5.2.2
-
-## R Packages
-
-- [Seurat 2.2.0](http://satijalab.org/seurat/install.html)
-- DESeq2 1.18.1 (optional)
-- MAST 1.4.0 (optional)
+- scanpy 0.4.2
+- louvain 0.6.1
