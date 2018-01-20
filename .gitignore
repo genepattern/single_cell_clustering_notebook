@@ -1,5 +1,6 @@
 # data files
 data/matrix.txt
+scripts/Multicore-TSNE/
 
 # Mac OS files
 *.DS_Store

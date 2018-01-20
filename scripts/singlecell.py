@@ -21,7 +21,7 @@ py.init_notebook_mode()
 
 # -------------------- HELPERS --------------------
 def _create_progress_bar():
-    layout = Layout(width='200px', height='20px', display='absolute', top='300px', left='50%', margin='-100px 0 0 0')
+    layout = Layout(width='200px', height='20px')
     return HTML('<progress></progress>', layout=layout)
 
 # -------------------- LOAD DATASET --------------------
@@ -121,95 +121,78 @@ def preprocess_counts(data, n_genes_range=['-inf', 'inf'], percent_mito_range=['
     n_genes_range = [float(x) for x in n_genes_range]
     percent_mito_range = [float(x) for x in percent_mito_range]
 
-    data, data_raw = _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_method)
-    _preprocess_counts_ui(data, data_raw)
+    data, data_raw, pc_sdev = _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_method)
+    _preprocess_counts_ui(data, data_raw, pc_sdev)
     return data
 
 
 def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_method):
     if data.raw:
         display(HTML('This data has already been preprocessed. Please run <code>load_dataset()</code> to reprocess this data.'))
-        return data, data.raw.X
+    else:
+        # Remove cells that have too many mitochondrial genes expressed or too many total counts.
+        # Actually do the filtering.
+        n_genes_filter = (data.obs['n_genes'] > n_genes_range[0]) & (data.obs['n_genes'] < n_genes_range[1])
+        if not n_genes_filter.any():
+            data = data[n_genes_filter, :]
 
-    # Remove cells that have too many mitochondrial genes expressed or too many total counts.
-    # Actually do the filtering.
-    n_genes_filter = (data.obs['n_genes'] > n_genes_range[0]) & (data.obs['n_genes'] < n_genes_range[1])
-    if not n_genes_filter.any():
-        data = data[n_genes_filter, :]
+        percent_mito_filter = (data.obs['percent_mito'] > percent_mito_range[0]) & (
+            data.obs['percent_mito'] < percent_mito_range[1])
+        if not percent_mito_filter.any():
+            data = data[percent_mito_filter, :]
 
-    percent_mito_filter = (data.obs['percent_mito'] > percent_mito_range[0]) & (
-        data.obs['percent_mito'] < percent_mito_range[1])
-    if not percent_mito_filter.any():
-        data = data[percent_mito_filter, :]
+        # Set the `.raw` attribute of AnnData object to the logarithmized raw gene
+        # expression for later use in differential testing and visualizations of
+        # gene expression. This simply freezes the state of the data stored in
+        # `data_raw`.
 
-    # Set the `.raw` attribute of AnnData object to the logarithmized raw gene
-    # expression for later use in differential testing and visualizations of
-    # gene expression. This simply freezes the state of the data stored in
-    # `data_raw`.
+        data_raw = sc.pp.log1p(data, copy=True)
+        data.raw = data_raw
 
-    data_raw = sc.pp.log1p(data, copy=True)
-    data.raw = data_raw
+        # Per-cell normalize the data matrix $\mathbf{X}$, identify highly-variable genes and compute logarithm.
+        sc.pp.normalize_per_cell(data, counts_per_cell_after=1e4)
+        filter_result = sc.pp.filter_genes_dispersion(
+            data, min_mean=0.1, max_mean=8, min_disp=1)
 
-    # Per-cell normalize the data matrix $\mathbf{X}$, identify highly-variable genes and compute logarithm.
-    sc.pp.normalize_per_cell(data, counts_per_cell_after=1e4)
-    filter_result = sc.pp.filter_genes_dispersion(
-        data, min_mean=0.1, max_mean=8, min_disp=1)
+        # Logarithmize the data.
+        sc.pp.log1p(data)
 
-    # Logarithmize the data.
-    sc.pp.log1p(data)
+        # Regress out effects of total counts per cell and the percentage of
+        # mitochondrial genes expressed. Scale the data to unit variance.
+        sc.pp.regress_out(data, ['n_counts', 'percent_mito'])
+        sc.pp.scale(data, max_value=10)
 
-    # Regress out effects of total counts per cell and the percentage of
-    # mitochondrial genes expressed. Scale the data to unit variance.
-    sc.pp.regress_out(data, ['n_counts', 'percent_mito'])
-    sc.pp.scale(data, max_value=10)
-
+    # Calculate PCA regardless
+    data, pc_sdev = _run_pca(data)
     # Save the result.
-    # data.write(results_file)
-    return data, data_raw
+    return data, data.raw.X, pc_sdev
 
 
-def _preprocess_counts_ui(data, data_raw):
+def _preprocess_counts_ui(data, data_raw, pc_sdev):
     cell_text = HTML(
         '<p><code>{}/{}</code> cells passed filtering.</p>'.format(len(data.obs_names), data_raw.shape[0]))
     v_genes_text = HTML('<p><code>{}</code> variable genes detected.</p>'.format(len(data.var_names)))
     regress_text = HTML(
         '''<p>Performed batch effect removal based on:</p><ol><li># of detected molecules per cell</li>
         <li>% mitochondrial gene content.</li></ol>''')
+
     display(cell_text, v_genes_text, regress_text)
+    pca_fig = _plot_pca(pc_sdev)
+    py.iplot(pca_fig, show_link=False)
 
 # -------------------- PERFORM CLUSTERING & MARKER ANALYSIS --------------------
 
 
 def perform_clustering_analysis(data):
-    data = _run_pca(data)
+
+    # -------------------- tSNE PLOT --------------------
     pc_sdev = pd.Series(np.std(data.obsm['X_pca'], axis=0))
     pc_sdev.index = pc_sdev.index + 1
 
-    elbow_output = widgets.Output()
     pcs = 10
     resolution = 1.3
     perplexity = 13
 
-    def plot_output_callback(e):
-        # mpl figure
-        fig_elbow_plot = plt.figure(figsize=(4.5, 5))
-        plt.plot(pc_sdev, 'o')
-        ax = fig_elbow_plot.gca()
-        x_axis = ax.axes.get_xaxis()
-        y_axis = ax.axes.get_yaxis()
-        x_axis.set_major_locator(MaxNLocator(integer=True))
-        y_axis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_xlabel('PC', size=16)
-        ax.set_ylabel('Standard Deviation of PC', size=14)
-        plt.close()
-
-        # plot
-        with elbow_output:
-            py_fig = tls.mpl_to_plotly(fig_elbow_plot)
-            py_fig['layout']['margin'] = {'l': 35, 'r': 14, 't': 10, 'b': 45}
-            py.iplot(py_fig, show_link=False)
-
-    # -------------------- tSNE PLOT --------------------
     # Parameter values
     pc_range = range(2, len(pc_sdev) + 1)
     res_range = [float('{:0.1f}'.format(x))
@@ -224,12 +207,10 @@ def perform_clustering_analysis(data):
     perp_slider = widgets.SelectionSlider(
         options=perp_range, value=perplexity, description="Perplexity", continuous_update=False)
 
-    plot_layout = Layout(width='60%')
-    side_layout = Layout(width='40%')
 
     # Output widget
-    plot_output = widgets.Output(layout=plot_layout)
-    markers_ui_output = widgets.Output()
+    plot_output = widgets.Output()
+    markers_ui_box = widgets.VBox([_create_progress_bar()])
 
     # "Go" button to plot on click
     def plot_tsne_callback(button):
@@ -248,33 +229,29 @@ def perform_clustering_analysis(data):
             # close progress bar
             progress_bar.close()
 
-        _markers_ui(data, markers_ui_output)
+        out1 = widgets.Output()
+        markers_ui_box.children = _markers_ui(data, out1)
 
     # Button widget
     go_button = widgets.Button(description='Plot')
     go_button.on_click(plot_tsne_callback)
 
     # Parameter descriptions
-    pc_info = HTML('<p>The number of selected principal components to use in clustering. Determine the number of principal components (PCs) to use by drawing a cutoff where there is a clear elbow in the graph.</p>')
-    pc_box = widgets.VBox([pc_info, elbow_output])
-    res_info = HTML('<p>The resolution parameter sets the ‘granularity’ of the downstream clustering, with increased values leading to a greater number of clusters. We find that setting this parameter between 0.6-1.2 typically returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for larger datasets.</p>')
-    perp_info = HTML('<p>The perpelexity parameter loosely models the number of close neighbors each point has. More info on how perplexity matters <a href="https://distill.pub/2016/misread-tsne/">here</a>.</p>')
+    pc_info = HTML('''<h4>Number of PCs (Principal Components)</h4><p>The number of selected principal components to use in clustering. Determine the number of principal components (PCs) to use by drawing a cutoff where there is a clear elbow in the graph.</p>
+                      <h4>Resolution</h4><p>The resolution parameter sets the ‘granularity’ of the downstream clustering, with increased values leading to a greater number of clusters. We find that setting this parameter between 0.6-1.2 typically returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for larger datasets.</p>
+                      <h4>Perplexity</h4><p>The perpelexity parameter loosely models the number of close neighbors each point has. More info on how perplexity matters <a href="https://distill.pub/2016/misread-tsne/">here</a>.</p>''')
 
     param_header = HTML('<h4>Parameters</h4>')
 
-    param_info = widgets.Accordion(
-        [pc_box, res_info, perp_info])
-    param_info.set_title(0, 'Number of PCs (Principal Components)')
-    param_info.set_title(1, 'Resolution')
-    param_info.set_title(2, 'Perplexity')
+    param_info = widgets.Accordion([pc_info])
+    param_info.set_title(0, 'Parameter Info')
+    param_info.selected_index = None
+    sliders = widgets.HBox([pc_slider, res_slider, perp_slider])
 
-    sliders = widgets.VBox([pc_slider, res_slider, perp_slider])
+    ui = widgets.VBox([param_header, param_info, sliders, go_button])
 
-    ui = widgets.VBox([param_header, sliders, go_button, param_info], layout=side_layout)
-
-    plot_box = widgets.HBox([ui, plot_output])
-    plot_box.on_displayed(plot_output_callback)
-    tabs = widgets.Tab([plot_box, markers_ui_output])
+    plot_box = widgets.VBox([ui, plot_output])
+    tabs = widgets.Tab([plot_box, markers_ui_box])
 
     tabs.set_title(0, '1. Visualize Clusters')
     tabs.set_title(1, '2. Explore Markers')
@@ -286,8 +263,34 @@ def perform_clustering_analysis(data):
 def _run_pca(data):
     sc.tl.pca(data)
     data.obsm['X_pca'] *= -1  # multiply by -1 to match Seurat R
-    return data
+    pc_sdev = pd.Series(np.std(data.obsm['X_pca'], axis=0))
+    pc_sdev.index = pc_sdev.index + 1
+    return data, pc_sdev
 
+
+def _plot_pca(pc_sdev):
+    elbow_output = widgets.Output()
+    pcs = 10
+    resolution = 1.3
+    perplexity = 13
+
+    # mpl figure
+    fig_elbow_plot = plt.figure(figsize=(4.5, 5))
+    plt.plot(pc_sdev, 'o')
+    ax = fig_elbow_plot.gca()
+    x_axis = ax.axes.get_xaxis()
+    y_axis = ax.axes.get_yaxis()
+    x_axis.set_major_locator(MaxNLocator(integer=True))
+    y_axis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel('PC', size=16)
+    ax.set_ylabel('Standard Deviation of PC', size=14)
+    plt.close()
+
+    # plot interactive
+    py_fig = tls.mpl_to_plotly(fig_elbow_plot)
+    py_fig['layout']['margin'] = {'l': 35, 'r': 14, 't': 10, 'b': 45}
+
+    return py_fig
 
 def _run_tsne(data, pcs, resolution, perplexity):
     sc.tl.tsne(data, n_pcs=pcs, perplexity=perplexity, learning_rate=1000, n_jobs=8)
@@ -309,9 +312,9 @@ def _plot_tsne(data):
     df = tsne_coordinates
     df['colors'] = cell_clusters.tolist()
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     for c, group in df.groupby(by='colors'):
-        group.plot(x='tSNE_1', y='tSNE_2', kind='scatter', c=colors[c], label=c, ax=ax, legend=False)
+        group.plot(x='tSNE_1', y='tSNE_2', kind='scatter', c=colors[c], label=c, alpha=0.7, ax=ax, legend=False)
         # ax = sns.regplot(x='tSNE_1', y='tSNE_2', data=group, color=colors[c], fit_reg=False, label=c)
     # ax.legend(loc='best')
     # ax = sns.regplot(x='tSNE_1', y='tSNE_2', data=tsne_coordinates,
@@ -328,135 +331,128 @@ def _plot_tsne(data):
     return py_fig
 
 
-def _markers_ui(data, markers_ui_output):
-    markers_plot_output = widgets.Output()
+def _markers_ui(data, out1):
+    # Marker Plot UI
+    marker_text_input = widgets.Text(description='Gene List')
+    marker_text_button = widgets.Button(description='Plot')
+    marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
+    header_text = widgets.HTML('<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
+    header_box = widgets.VBox([header_text, marker_input_box])
 
+    plots_layout = Layout(height='600px', display='flex', align_items='center', justify_content='center')
+    markers_plot_outputs = widgets.Tab([widgets.Box([HTML('<p>Plots will display here.</p>')], layout=plots_layout)])
+    markers_plot_outputs.children = [out1]
+    # Create all plots
+    def create_marker_plots(button):
+        with out1:
+            _tsne_markers_ui(data, marker_text_input)
+        violin_plots_output = _violin_plots_markers_ui(data, marker_text_input)
+
+    marker_text_button.on_click(create_marker_plots)
+
+    table_ui = _cluster_marker_table(data)
+    return [header_box, markers_plot_outputs, table_ui]
+
+def _tsne_markers_ui(data, marker_text_input):
+    # -------------------- TSNE EXPRESSION PLOT --------------------
+    # tsne_expression_output = widgets.Output()
+
+    progress_bar = _create_progress_bar()
+    gene = marker_text_input.value
+
+    display(progress_bar)
+
+    # Calculate and plot marker expression on tSNE plot
+    fig = _plot_tsne_markers(data, gene)
+    py.iplot_mpl(fig, show_link=False)
+
+    progress_bar.close()
+
+
+def _violin_plots_markers_ui(data, marker_text_input):
+    pass
+
+
+def _cluster_marker_table(data):
     # -------------------- CLUSTER MARKER TABLE --------------------
-    markers_ui_output.clear_output()
-    with markers_ui_output:
+    cell_clusters = data.obs['louvain_groups'].astype(int)
+    cluster_names = np.unique(cell_clusters).tolist()
+    cluster_names = [str(x) for x in cluster_names]
+    num_clusters = len(cluster_names)
 
-        cell_clusters = data.obs['louvain_groups'].astype(int)
-        cluster_names = np.unique(cell_clusters).tolist()
-        cluster_names = [str(x) for x in cluster_names]
-        num_clusters = len(cluster_names)
+    # test used for differential expression analysis
+    test_options = ['wilcoxon', 't-test']
 
-        # test used for differential expression analysis
-        test_options = ['wilcoxon', 't-test']
-        test_dropdown = widgets.Dropdown(
-            options=test_options, value='wilcoxon', description='Test to use')
+    # -------------------- CUSTOM MARKERS COMPARISON --------------------
+    custom_markers_layout = layout=Layout(width='98%')
+    select_header = widgets.HTML('<p>Choose two clusters to compare markers between.</p>', layout=custom_markers_layout)
+    test_dropdown = widgets.Dropdown(options=test_options, value='wilcoxon', description='Test', layout=custom_markers_layout)
+    select_1 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 1', layout=custom_markers_layout)
+    select_2 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 2', layout=custom_markers_layout)
+    markers_go_button1 = widgets.Button(description='Calculate Markers')
+    markers_df_output = widgets.Output(layout=Layout(max_height='250px', overflow_y='auto', padding='0'))
 
-        # -------------------- MARKERS PLOT --------------------
+    custom_markers_box = widgets.VBox([select_header, test_dropdown, select_1, select_2,
+                                       markers_go_button1, markers_df_output])
 
-        # Marker Plot UI
-        marker_text_input = widgets.Text(description='Gene')
-        marker_text_button = widgets.Button(description='Plot')
-        marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
+    def markers_df_callback(button):
+        markers = _find_cluster_markers(data,
+                                        select_1.value,
+                                        select_2.value,
+                                        test_dropdown.value)
 
-        def plot_marker(e):
-            gene = marker_text_input.value
-            fig = _plot_tsne_markers(data, gene)
-
-            markers_plot_output.clear_output()
-            progress_bar = _create_progress_bar()
-
-            with markers_plot_output:
-                display(progress_bar)
-
-                # Plot marker expression on tSNE plot
-                py.iplot_mpl(fig, show_link=False)
-
-                # Plot violinplot of marker expression in each cluster
-                # ax = sc.pl.violin(data, gene.split(',')[0], group_by='louvain_groups')
-                progress_bar.close()
-
-        marker_text_button.on_click(plot_marker)
-
-        header = widgets.HTML(
-            '<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
-        plot_markers_box = widgets.VBox(
-            [header, marker_input_box, markers_plot_output], layout=Layout(width='62%'))
-
-        # -------------------- CUSTOM COMPARISON --------------------
-        # selection groups
-        # select_1_header = widgets.HTML('<h4>Group 1</h4>')
-        # select_2_header = widgets.HTML('<h4>Group 2</h4>')
-        select_1 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 1')
-        select_2 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 2')
-        # select_1_box = widgets.VBox([select_1_header, select_1], layout=Layout(max_width='50%', margin='8px'))
-        # select_2_box = widgets.VBox([select_2_header, select_2], layout=Layout(max_width='50%', margin='8px'))
-        selection_box = widgets.VBox([select_1, select_2])
-
-        # Go button
-        markers_go_button1 = widgets.Button(description='Calculate Markers')
-        markers_df_output = widgets.Output(layout=Layout(max_height='800px', overflow_y='scroll'))
-
-        select_header = widgets.HTML(
-            '<p>Choose two clusters to compare markers between.</p>')
-        custom_markers_box = widgets.VBox([select_header, test_dropdown, selection_box,
-                                           markers_go_button1, markers_df_output])
-
-        def markers_df_callback(button):
-            markers = _find_cluster_markers(data,
-                                            select_1.value,
-                                            select_2.value,
-                                            test_dropdown.value,
-                                            marker_text_input)
-
-            # Display df
-            markers_df_output.clear_output()
-            with markers_df_output:
-                if type(markers) is TableDisplay:
-                    display(
-                        HTML('<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value)))
+        # Display df
+        markers_df_output.clear_output()
+        with markers_df_output:
+            if type(markers) is TableDisplay:
+                custom_inner_box = widgets.VBox()
+                custom_marker_output_text = HTML('<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value))
+                custom_inner_box.children = [custom_marker_output_text, markers]
+                display(custom_inner_box)
+            else:
                 display(markers)
 
-        markers_go_button1.on_click(markers_df_callback)
+    markers_go_button1.on_click(markers_df_callback)
 
-        df_tabs = widgets.Tab([custom_markers_box])
+    df_tabs = widgets.Tab([custom_markers_box])
 
-        # -------------------- MARKERS INDIVIDUAL --------------------
-        # Find all markers
-        test_all_dropdown = widgets.Dropdown(
-            options=test_options, value='wilcoxon', description='Test to use')
-        all_markers_button = widgets.Button(description='Recalculate Markers')
-        all_markers_box = widgets.VBox([test_all_dropdown, all_markers_button])
+    # -------------------- MARKERS INDIVIDUAL --------------------
+    # Find all markers
+    test_all_dropdown = widgets.Dropdown(
+        options=test_options, value='wilcoxon', description='Test', layout=Layout(max_width='98%'))
+    all_markers_button = widgets.Button(description='Calculate Markers')
+    all_markers_box = widgets.VBox([test_all_dropdown, all_markers_button])
 
-        def all_markers_callback(button=None, tabs=None):
-            marker_df = []
-            df_outputs = {}
-            for cluster in cluster_names:
-                df = _find_cluster_markers(data,
-                                           cluster,
-                                           'rest',
-                                           test_all_dropdown.value,
-                                           marker_text_input)
-                df_outputs[cluster] = widgets.Output(layout=Layout(max_height='800px', overflow_y='scroll'))
+    def all_markers_callback(button=None, tabs=None):
+        marker_df = []
+        df_outputs = {}
+        for cluster in cluster_names:
+            table = _find_cluster_markers(data,
+                                       cluster,
+                                       'rest',
+                                       test_all_dropdown.value)
+            df_outputs[cluster] = widgets.Output(layout=Layout(max_height='250px', overflow_y='auto'))
 
-                with df_outputs[cluster]:
-                    display(HTML('<h4>Cluster {} Markers</h4>'.format(cluster)))
-                    display(df)
+            with df_outputs[cluster]:
+                # df_output_header = HTML('<h4>Cluster {} Markers</h4>'.format(cluster))
+                # df_output_box = widgets.VBox([df_output_header, table])
+                display(table)
+            marker_df.append(df_outputs[cluster])
 
-                marker_df.append(df_outputs[cluster])
-
-            df_tabs.children = marker_df + [custom_markers_box]
-            df_tabs.set_title(num_clusters, 'Custom')
-            for i, c in enumerate(cluster_names):
-                df_tabs.set_title(i, c)
-
+        df_tabs.children = marker_df + [custom_markers_box]
+        df_tabs.set_title(num_clusters, 'Custom')
+        for i, c in enumerate(cluster_names):
+            df_tabs.set_title(i, (c))
 
 
-        all_markers_callback()
-        all_markers_button.on_click(all_markers_callback)
+    all_markers_callback()
+    all_markers_button.on_click(all_markers_callback)
 
-        markers_ui_box = widgets.VBox([all_markers_box, df_tabs], layout=Layout(width='38%'))
-        markers_all_box = widgets.HBox([markers_ui_box, plot_markers_box])
-        display(markers_all_box)
-
-
-    return markers_ui_output
+    ui_box = widgets.VBox([all_markers_box, df_tabs], layout=Layout(width='30%'))
+    return ui_box
 
 
-def _find_cluster_markers(data, ident_1, ident_2, test, marker_text_input):
+def _find_cluster_markers(data, ident_1, ident_2, test):
     if ident_1 == ident_2:
         return HTML('Error. The selected clusters must be different clusters.')
 
@@ -479,12 +475,7 @@ def _find_cluster_markers(data, ident_1, ident_2, test, marker_text_input):
 
     results = pd.DataFrame([marker_names, marker_scores], index=['Gene', 'Adj p-value']).T
     results.set_index(['Gene'], inplace=True)
-    table = TableDisplay(results)
-
-    def add_gene(row, column, display):
-        display(marker_text_input.value)
-        marker_text_input.value = marker_text_input.value + ', {}'.format(tabledisplay.values[row][column])
-    table.setDoubleClickAction(add_gene)
+    table = TableDisplay(results, page='False')
 
     return TableDisplay(results)
 
@@ -506,7 +497,7 @@ def _plot_tsne_markers(data, gene=''):
         gene_values.index = gene_list
 
     # Declare grey to red colormap
-    expression_cmap = LinearSegmentedColormap.from_list('name', ['lightgrey', 'red'])
+    expression_cmap = LinearSegmentedColormap.from_list('name', ['lightgrey', 'orangered', 'red'])
 
     # Plot each gene
     if len(gene_list) == 1:
@@ -517,7 +508,7 @@ def _plot_tsne_markers(data, gene=''):
         marker_size = 10
     else:
         fig, axes = plt.subplots(3, 3, figsize=(8, 8), sharex=True, sharey=True)
-        marker_size = 4
+        marker_size = 3
 
     for i, g in enumerate(gene_values.index):
         if len(gene_list) == 1:
@@ -539,14 +530,6 @@ def _plot_tsne_markers(data, gene=''):
     plt.subplots_adjust(hspace=0.3)
     plt.close()
 
-    # fig = plt.figure(figsize=(8, 8))
-    # ax = sns.regplot(x='tSNE_1', y='tSNE_2', data=_tsne_coordinates, scatter_kws={'c': gene_values, 'color': None, 'cmap' : expression_cmap}, fit_reg=False)
-    # # cbar = ColorbarBase(ax, cmap=expression_cmap, orientation='horizontal')
-    #
-    # plt.title('{} Expression'.format(gene), size=16)
-    # ax.set_xlabel(ax.get_xlabel(), size=14)
-    # ax.set_ylabel(ax.get_ylabel(), size=14)
-    # plt.close()
     return fig
 
 # -------------------- FILE EXPORT --------------------
