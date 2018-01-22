@@ -15,11 +15,14 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 import plotly.offline as py
 import plotly.tools as tls
 import scanpy.api as sc
+
 # from beakerx import *
 
 py.init_notebook_mode()
 
 # -------------------- HELPERS --------------------
+
+
 def _create_progress_bar():
     layout = Layout(width='200px', height='20px')
     return HTML('<progress></progress>', layout=layout)
@@ -207,9 +210,11 @@ def perform_clustering_analysis(data):
     perp_slider = widgets.SelectionSlider(
         options=perp_range, value=perplexity, description="Perplexity", continuous_update=False)
 
-
     # Output widget
-    plot_output = widgets.Output()
+    plot_output = widgets.Output(layout=Layout(height='6in', display='flex',
+                                               align_items='center', justify_content='center'))
+    with plot_output:
+        display(HTML('<p>Plot will display here.</p>'))
     markers_ui_box = widgets.VBox([_create_progress_bar()])
 
     # "Go" button to plot on click
@@ -229,8 +234,9 @@ def perform_clustering_analysis(data):
             # close progress bar
             progress_bar.close()
 
-        out1 = widgets.Output()
-        markers_ui_box.children = _markers_ui(data, out1)
+        # tSNE and violin plots
+        plots_tab = widgets.Tab()
+        markers_ui_box.children = _markers_ui(data, plots_tab)
 
     # Button widget
     go_button = widgets.Button(description='Plot')
@@ -292,6 +298,7 @@ def _plot_pca(pc_sdev):
 
     return py_fig
 
+
 def _run_tsne(data, pcs, resolution, perplexity):
     sc.tl.tsne(data, n_pcs=pcs, perplexity=perplexity, learning_rate=1000, n_jobs=8)
     sc.tl.louvain(data, n_neighbors=10, resolution=resolution, recompute_graph=True)
@@ -312,7 +319,7 @@ def _plot_tsne(data):
     df = tsne_coordinates
     df['colors'] = cell_clusters.tolist()
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     for c, group in df.groupby(by='colors'):
         group.plot(x='tSNE_1', y='tSNE_2', kind='scatter', c=colors[c], label=c, alpha=0.7, ax=ax, legend=False)
         # ax = sns.regplot(x='tSNE_1', y='tSNE_2', data=group, color=colors[c], fit_reg=False, label=c)
@@ -322,6 +329,7 @@ def _plot_tsne(data):
     plt.title('tSNE Visualization', size=16)
     ax.set_xlabel(ax.get_xlabel(), size=14)
     ax.set_ylabel(ax.get_ylabel(), size=14)
+    plt.tight_layout()
     plt.close()
 
     py_fig = tls.mpl_to_plotly(fig)
@@ -331,48 +339,107 @@ def _plot_tsne(data):
     return py_fig
 
 
-def _markers_ui(data, out1):
+def _markers_ui(data, plots_tab):
     # Marker Plot UI
     marker_text_input = widgets.Text(description='Gene List')
     marker_text_button = widgets.Button(description='Plot')
     marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
-    header_text = widgets.HTML('<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
+    header_text = widgets.HTML(
+        '<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
     header_box = widgets.VBox([header_text, marker_input_box])
 
-    plots_layout = Layout(height='600px', display='flex', align_items='center', justify_content='center')
-    markers_plot_outputs = widgets.Tab([widgets.Box([HTML('<p>Plots will display here.</p>')], layout=plots_layout)])
-    markers_plot_outputs.set_title(0, 'tSNE Map')
+    plots_layout = Layout(height='6in')
+    plots_tab.layout = plots_layout
+
+    plots_tab.children = [HTML('<p>Plots will display here.</p>')]
+
     # Create all plots
     def create_marker_plots(button):
-        markers_plot_outputs.children = [out1]
-        out1.clear_output()
-        with out1:
-            _tsne_markers_ui(data, marker_text_input)
-        # violin_plots_output = _violin_plots_markers_ui(data, marker_text_input)
+        # Parse/retrieve gene expression values
+        gene = marker_text_input.value
+        if gene == '':
+            gene_values = [0] * len(data.obs_names)
+        else:
+            gene_list = gene.split(',')
+            gene_list = [x.strip() for x in gene_list]
+
+            if type(gene_list) == list:
+                gene_locs = [data.raw.var_names.get_loc(x) for x in gene_list]
+            else:
+                gene_locs = [data.raw.var_names.get_loc[gene_list]]
+
+            gene_values = pd.DataFrame(data.raw.X[:, gene_locs]).T
+            gene_values.index = gene_list
+
+        # plots
+        _tsne_markers_ui(data, gene_list, gene_values, plots_tab)
 
     marker_text_button.on_click(create_marker_plots)
 
     table_ui = _cluster_marker_table(data)
-    return [header_box, markers_plot_outputs, table_ui]
+    return [header_box, plots_tab, table_ui]
 
-def _tsne_markers_ui(data, marker_text_input):
+
+def _tsne_markers_ui(data, gene_list, gene_values, tab_container):
     # -------------------- TSNE EXPRESSION PLOT --------------------
-    # tsne_expression_output = widgets.Output()
-
     progress_bar = _create_progress_bar()
-    gene = marker_text_input.value
 
-    display(progress_bar)
+    tab_container.children = [progress_bar]
 
     # Calculate and plot marker expression on tSNE plot
-    fig = _plot_tsne_markers(data, gene)
-    py.iplot_mpl(fig, show_link=False)
+    tsne_figs = _plot_tsne_markers(data, gene_list, gene_values)
+    violin_figs = _plot_violin_plots(data, gene_list, gene_values)
+    tab_container.children = [widgets.Output(layout=Layout(display='flex', justify_content='center', align_items='center')) for g in gene_list]
+    for i, tsne_fig, violin_fig, gene in zip(range(len(tsne_figs)), tsne_figs, violin_figs, gene_list):
+        tab_container.set_title(i, gene)
+        with tab_container.children[i]:
+            display(HTML('<h4 style="text-align:center;">Relative Expression Across Cells</h4>'))
+            py.iplot_mpl(tsne_fig, show_link=False)
+            display(HTML('<h4 style="text-align:center;">Relative Expression Across Clusters</h4>'))
+            display(violin_fig)
 
     progress_bar.close()
 
 
-def _violin_plots_markers_ui(data, marker_text_input):
-    pass
+def _plot_tsne_markers(data, gene_list, gene_values):
+    # Declare grey to red colormap
+    expression_cmap = LinearSegmentedColormap.from_list('name', ['lightgrey', 'orangered', 'red'])
+
+    all_figs = []
+    for i, g in enumerate(gene_values.index):
+
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.gca()
+
+        sns.regplot(x='tSNE_1', y='tSNE_2', data=pd.DataFrame(data.obsm['X_tsne'], columns=['tSNE_1', 'tSNE_2']), scatter_kws={
+                    'c': gene_values.loc[g], 'color': None, 's': 20, 'cmap': expression_cmap}, fit_reg=False, ax=ax)
+        ax.set_title(g, y=1)
+        ax.set_ylabel('')
+        ax.set_xlabel('')
+        all_figs.append(fig)
+        plt.tight_layout()
+        plt.close()
+
+    return all_figs
+
+
+def _plot_violin_plots(data, gene_list, gene_values):
+    all_figs = []
+    for i, gene in enumerate(gene_list):
+        fig = plt.figure(figsize=(6, 4))
+        ax = plt.gca()
+        gene_df = gene_values.loc[gene, :].to_frame()
+        gene_df.index = data.obs_names
+        gene_df['cluster'] = data.obs['louvain_groups']
+
+        # plot violin per cluster
+        sns.set_style("ticks")
+        sns.violinplot(x='cluster', y=gene, data=gene_df, ax=ax, palette='Set2')
+        sns.despine()
+        all_figs.append(fig)
+        plt.close()
+
+    return all_figs
 
 
 def _cluster_marker_table(data):
@@ -386,11 +453,15 @@ def _cluster_marker_table(data):
     test_options = ['wilcoxon', 't-test']
 
     # -------------------- CUSTOM MARKERS COMPARISON --------------------
-    custom_markers_layout = layout=Layout(width='98%')
-    select_header = widgets.HTML('<p>Choose two clusters to compare markers between.</p>', layout=custom_markers_layout)
-    test_dropdown = widgets.Dropdown(options=test_options, value='wilcoxon', description='Test', layout=custom_markers_layout)
-    select_1 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 1', layout=custom_markers_layout)
-    select_2 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 2', layout=custom_markers_layout)
+    custom_markers_layout = layout = Layout(width='98%')
+    select_header = widgets.HTML('<p>Choose two clusters to compare markers between.</p>',
+                                 layout=custom_markers_layout)
+    test_dropdown = widgets.Dropdown(options=test_options, value='wilcoxon',
+                                     description='Test', layout=custom_markers_layout)
+    select_1 = widgets.Dropdown(options=cluster_names, value='0',
+                                description='Cluster 1', layout=custom_markers_layout)
+    select_2 = widgets.Dropdown(options=cluster_names, value='0',
+                                description='Cluster 2', layout=custom_markers_layout)
     markers_go_button1 = widgets.Button(description='Calculate Markers')
     markers_df_output = widgets.Output(layout=Layout(max_height='300px', overflow_y='auto', padding='0'))
 
@@ -411,7 +482,8 @@ def _cluster_marker_table(data):
                 custom_markers_output = widgets.Output()
                 with custom_markers_output:
                     display(markers)
-                custom_marker_output_text = HTML('<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value))
+                custom_marker_output_text = HTML(
+                    '<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value))
                 custom_inner_box.children = [custom_marker_output_text, custom_markers_output]
                 display(custom_inner_box)
             else:
@@ -443,7 +515,6 @@ def _cluster_marker_table(data):
         df_tabs.set_title(num_clusters, 'Custom')
         for i, c in enumerate(cluster_names):
             df_tabs.set_title(i, (c))
-
 
     all_markers_callback()
     all_markers_button.on_click(all_markers_callback)
@@ -479,58 +550,6 @@ def _find_cluster_markers(data, ident_1, ident_2, test):
 
     return results
 
-
-def _plot_tsne_markers(data, gene=''):
-    # Retrieve gene expression values
-    if gene == '':
-        gene_values = [0] * len(data.obs_names)
-    else:
-        gene_list = gene.split(',')
-        gene_list = [x.strip() for x in gene_list]
-
-        if type(gene_list) == list:
-            gene_locs = [data.raw.var_names.get_loc(x) for x in gene_list]
-        else:
-            gene_locs = [data.raw.var_names.get_loc[gene_list]]
-
-        gene_values = pd.DataFrame(data.raw.X[:, gene_locs]).T
-        gene_values.index = gene_list
-
-    # Declare grey to red colormap
-    expression_cmap = LinearSegmentedColormap.from_list('name', ['lightgrey', 'orangered', 'red'])
-
-    # Plot each gene
-    if len(gene_list) == 1:
-        fig, axes = plt.subplots(1, 1, figsize=(8, 8), sharex=True, sharey=True)
-        marker_size = 20
-    elif len(gene_list) <= 4:
-        fig, axes = plt.subplots(2, 2, figsize=(8, 8), sharex=True, sharey=True)
-        marker_size = 10
-    else:
-        fig, axes = plt.subplots(3, 3, figsize=(8, 8), sharex=True, sharey=True)
-        marker_size = 3
-
-    for i, g in enumerate(gene_values.index):
-        if len(gene_list) == 1:
-            ax = axes
-        elif len(gene_list) <= 4:
-            ax_x = int(i / 2)
-            ax_y = i % 2
-            ax = axes[ax_x][ax_y]
-        else:
-            ax_x = int(i / 3)
-            ax_y = i % 3
-            ax = axes[ax_x][ax_y]
-        # plt.scatter(x=data.obsm['X_tsne'][:,0], y=data.obsm['X_tsne'][:,1], c=gene_values.loc[g])
-        sns.regplot(x='tSNE_1', y='tSNE_2', data=pd.DataFrame(data.obsm['X_tsne'], columns=['tSNE_1', 'tSNE_2']), scatter_kws={
-                    'c': gene_values.loc[g], 'color': None, 's': marker_size, 'cmap': expression_cmap}, fit_reg=False, ax=ax)
-        ax.set_title(g, y=0.92)
-        ax.set_ylabel('')
-        ax.set_xlabel('')
-    plt.subplots_adjust(hspace=0.3)
-    plt.close()
-
-    return fig
 
 # -------------------- FILE EXPORT --------------------
 
