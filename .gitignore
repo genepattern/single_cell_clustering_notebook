@@ -1,5 +1,8 @@
 # data files
 data/matrix.txt
+data/barcodes.tsv
+data/genes.tsv
+data/matrix.mtx
 scripts/Multicore-TSNE/
 
 # Mac OS files

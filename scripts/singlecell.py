@@ -15,7 +15,7 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 import plotly.offline as py
 import plotly.tools as tls
 import scanpy.api as sc
-from beakerx import *
+# from beakerx import *
 
 py.init_notebook_mode()
 
@@ -341,12 +341,14 @@ def _markers_ui(data, out1):
 
     plots_layout = Layout(height='600px', display='flex', align_items='center', justify_content='center')
     markers_plot_outputs = widgets.Tab([widgets.Box([HTML('<p>Plots will display here.</p>')], layout=plots_layout)])
-    markers_plot_outputs.children = [out1]
+    markers_plot_outputs.set_title(0, 'tSNE Map')
     # Create all plots
     def create_marker_plots(button):
+        markers_plot_outputs.children = [out1]
+        out1.clear_output()
         with out1:
             _tsne_markers_ui(data, marker_text_input)
-        violin_plots_output = _violin_plots_markers_ui(data, marker_text_input)
+        # violin_plots_output = _violin_plots_markers_ui(data, marker_text_input)
 
     marker_text_button.on_click(create_marker_plots)
 
@@ -390,7 +392,7 @@ def _cluster_marker_table(data):
     select_1 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 1', layout=custom_markers_layout)
     select_2 = widgets.Dropdown(options=cluster_names, value='0', description='Cluster 2', layout=custom_markers_layout)
     markers_go_button1 = widgets.Button(description='Calculate Markers')
-    markers_df_output = widgets.Output(layout=Layout(max_height='250px', overflow_y='auto', padding='0'))
+    markers_df_output = widgets.Output(layout=Layout(max_height='300px', overflow_y='auto', padding='0'))
 
     custom_markers_box = widgets.VBox([select_header, test_dropdown, select_1, select_2,
                                        markers_go_button1, markers_df_output])
@@ -404,10 +406,13 @@ def _cluster_marker_table(data):
         # Display df
         markers_df_output.clear_output()
         with markers_df_output:
-            if type(markers) is TableDisplay:
+            if type(markers) is pd.DataFrame:
                 custom_inner_box = widgets.VBox()
+                custom_markers_output = widgets.Output()
+                with custom_markers_output:
+                    display(markers)
                 custom_marker_output_text = HTML('<p>Markers positively differentiating cluster {} from cluster {}.</p>'.format(select_1.value, select_2.value))
-                custom_inner_box.children = [custom_marker_output_text, markers]
+                custom_inner_box.children = [custom_marker_output_text, custom_markers_output]
                 display(custom_inner_box)
             else:
                 display(markers)
@@ -427,15 +432,10 @@ def _cluster_marker_table(data):
         marker_df = []
         df_outputs = {}
         for cluster in cluster_names:
-            table = _find_cluster_markers(data,
-                                       cluster,
-                                       'rest',
-                                       test_all_dropdown.value)
-            df_outputs[cluster] = widgets.Output(layout=Layout(max_height='250px', overflow_y='auto'))
+            table = _find_cluster_markers(data, cluster, 'rest', test_all_dropdown.value)
+            df_outputs[cluster] = widgets.Output(layout=Layout(max_height='300px', overflow_y='auto'))
 
             with df_outputs[cluster]:
-                # df_output_header = HTML('<h4>Cluster {} Markers</h4>'.format(cluster))
-                # df_output_box = widgets.VBox([df_output_header, table])
                 display(table)
             marker_df.append(df_outputs[cluster])
 
@@ -475,9 +475,9 @@ def _find_cluster_markers(data, ident_1, ident_2, test):
 
     results = pd.DataFrame([marker_names, marker_scores], index=['Gene', 'Adj p-value']).T
     results.set_index(['Gene'], inplace=True)
-    table = TableDisplay(results, page='False')
+    # table = TableDisplay(results)
 
-    return TableDisplay(results)
+    return results
 
 
 def _plot_tsne_markers(data, gene=''):
