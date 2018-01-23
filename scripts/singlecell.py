@@ -1,4 +1,5 @@
 from decimal import Decimal
+from copy import deepcopy
 
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
@@ -30,16 +31,24 @@ def _create_progress_bar():
 # -------------------- LOAD DATASET --------------------
 
 
-def load_dataset(path, min_cells=3, min_genes=200):
-    data = _load_dataset(path, min_cells, min_genes)
+def load_dataset(input_type, path, min_cells=3, min_genes=200):
+    data = _load_dataset(input_type, path, min_cells, min_genes)
     _load_dataset_ui(data)
     return data
 
 
-def _load_dataset(path, min_cells, min_genes):
+def _load_dataset(input_type, path, min_cells, min_genes):
 
+    if input_type == 'tabbed':
+        data = sc.read_text(path).transpose()
+    elif input_type == '_10x':
+        data = sc.read(path + 'matrix.mtx', cache=True).transpose()
+        data.var_names = np.genfromtxt(path + 'genes.tsv', dtype=str)[:, 1]
+        data.obs_names = np.genfromtxt(path + 'barcodes.tsv', dtype=str)
+    else:
+        display(HTML('Unknown file type <code>{}</code>.'.format(input_type)))
+        return
     # Load data
-    data = sc.read_text(path).transpose()
 
     # Basic filtering.
     sc.pp.filter_cells(data, min_genes=min_genes)
@@ -52,7 +61,7 @@ def _load_dataset(path, min_cells, min_genes):
             data.X, axis=1)
     # add the total counts per cell as observations-annotation to data
     data.obs['n_counts'] = np.sum(data.X, axis=1)
-
+    data.is_log = False
     return data
 
 
@@ -114,15 +123,9 @@ def _load_dataset_ui(data):
 # -------------------- PREPROCESS COUNTS --------------------
 
 
-def preprocess_counts(data, n_genes_range=['-inf', 'inf'], percent_mito_range=['-inf', 'inf'], normalization_method='LogNormalize'):
-    if type(n_genes_range) is str:
-        n_genes_range = n_genes_range.split(',')
-
-    if type(percent_mito_range) is str:
-        percent_mito_range = percent_mito_range.split(',')
-
-    n_genes_range = [float(x) for x in n_genes_range]
-    percent_mito_range = [float(x) for x in percent_mito_range]
+def preprocess_counts(data, min_n_genes='-inf', max_n_genes='inf', min_percent_mito='-inf', max_percent_mito='inf', normalization_method='LogNormalize'):
+    n_genes_range = [float(min_n_genes), float(max_n_genes)]
+    percent_mito_range = [float(min_percent_mito), float(max_percent_mito)]
 
     data, data_raw, pc_sdev = _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_method)
     _preprocess_counts_ui(data, data_raw, pc_sdev)
@@ -131,10 +134,9 @@ def preprocess_counts(data, n_genes_range=['-inf', 'inf'], percent_mito_range=['
 
 def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_method):
     if data.raw:
-        display(HTML('This data has already been preprocessed. Please run <code>load_dataset()</code> to reprocess this data.'))
+        display(HTML('This data has already been preprocessed. Please run <code>load_dataset()</code> again if you would like to perform preprocessing again.'))
     else:
         # Remove cells that have too many mitochondrial genes expressed or too many total counts.
-        # Actually do the filtering.
         n_genes_filter = (data.obs['n_genes'] > n_genes_range[0]) & (data.obs['n_genes'] < n_genes_range[1])
         if not n_genes_filter.any():
             data = data[n_genes_filter, :]
@@ -148,9 +150,11 @@ def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_me
         # expression for later use in differential testing and visualizations of
         # gene expression. This simply freezes the state of the data stored in
         # `data_raw`.
-
-        data_raw = sc.pp.log1p(data, copy=True)
-        data.raw = data_raw
+        if normalization_method == 'LogNormalize' and data.is_log is False:
+            data_raw = sc.pp.log1p(data, copy=True)
+            data.raw = data_raw
+        else:
+            data.raw = deepcopy(data.X)
 
         # Per-cell normalize the data matrix $\mathbf{X}$, identify highly-variable genes and compute logarithm.
         sc.pp.normalize_per_cell(data, counts_per_cell_after=1e4)
@@ -158,7 +162,9 @@ def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_me
             data, min_mean=0.1, max_mean=8, min_disp=1)
 
         # Logarithmize the data.
-        sc.pp.log1p(data)
+        if normalization_method == 'LogNormalize' and data.is_log is False:
+            sc.pp.log1p(data)
+            data.is_log = True
 
         # Regress out effects of total counts per cell and the percentage of
         # mitochondrial genes expressed. Scale the data to unit variance.
@@ -174,12 +180,16 @@ def _preprocess_counts(data, n_genes_range, percent_mito_range, normalization_me
 def _preprocess_counts_ui(data, data_raw, pc_sdev):
     cell_text = HTML(
         '<p><code>{}/{}</code> cells passed filtering.</p>'.format(len(data.obs_names), data_raw.shape[0]))
-    v_genes_text = HTML('<p><code>{}</code> variable genes detected.</p>'.format(len(data.var_names)))
+    v_genes_text = HTML('<p><code>{}/{}</code> genes detected as variable genes.</p>'.format(len(data.var_names), data_raw.shape[1]))
+    if data.is_log:
+        log_text = HTML('<p>Data is log normalized.</p>')
+    else:
+        log_text = HTML('<p>Data is not normalized.</p>')
     regress_text = HTML(
         '''<p>Performed batch effect removal based on:</p><ol><li># of detected molecules per cell</li>
-        <li>% mitochondrial gene content.</li></ol>''')
+        <li>% mitochondrial gene content</li></ol>''')
 
-    display(cell_text, v_genes_text, regress_text)
+    display(cell_text, v_genes_text, log_text, regress_text)
     pca_fig = _plot_pca(pc_sdev)
     py.iplot(pca_fig, show_link=False)
 
@@ -345,7 +355,7 @@ def _markers_ui(data, plots_tab):
     marker_text_button = widgets.Button(description='Plot')
     marker_input_box = widgets.HBox([marker_text_input, marker_text_button])
     header_text = widgets.HTML(
-        '<p>Provide up to 9 genes separated by comma to visualize the expression of each gene.</p>')
+        '<p>Provide a list of genes (separated by comma) to visualize their expression.</p>')
     header_box = widgets.VBox([header_text, marker_input_box])
 
     plots_layout = Layout(height='6in')
@@ -368,7 +378,11 @@ def _markers_ui(data, plots_tab):
             else:
                 gene_locs = [data.raw.var_names.get_loc[gene_list]]
 
-            gene_values = pd.DataFrame(data.raw.X[:, gene_locs]).T
+            if data.raw.X is np.array:
+                gene_values = pd.DataFrame(data.raw.X[:, gene_locs]).T
+            else:
+                gene_values = pd.DataFrame(data.raw.X[:, gene_locs].toarray()).T
+
             gene_values.index = gene_list
 
         # plots
@@ -426,7 +440,7 @@ def _plot_tsne_markers(data, gene_list, gene_values):
 def _plot_violin_plots(data, gene_list, gene_values):
     all_figs = []
     for i, gene in enumerate(gene_list):
-        fig = plt.figure(figsize=(6, 4))
+        fig = plt.figure(figsize=(8, 4))
         ax = plt.gca()
         gene_df = gene_values.loc[gene, :].to_frame()
         gene_df.index = data.obs_names
@@ -519,7 +533,7 @@ def _cluster_marker_table(data):
     all_markers_callback()
     all_markers_button.on_click(all_markers_callback)
 
-    ui_box = widgets.VBox([all_markers_box, df_tabs], layout=Layout(width='30%'))
+    ui_box = widgets.VBox([all_markers_box, df_tabs], layout=Layout(width='50%'))
     return ui_box
 
 
