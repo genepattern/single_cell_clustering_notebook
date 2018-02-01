@@ -5,6 +5,8 @@
 Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
 
 # Local Installation
+This notebook uses Python 3.
+
 1. Install required python packages with:
 ```bash
 pip install -r requirements.txt
