@@ -572,8 +572,8 @@ def visualize_markers(data):
     main_box.children = [heatmap_box, marker_plot_box]
 
     # TODO name tabs
-    main_box.set_title(0, 'tSNE Plot')
-    main_box.set_title(1, 'Heatmap')
+    main_box.set_title(0, 'Heatmap')
+    main_box.set_title(1, 'tSNE Plot')
     # Table
     explore_markers_box = VBox(layout=Layout(width='38%'))
     cluster_table_header_box = VBox()
