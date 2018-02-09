@@ -5,7 +5,7 @@
 Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
 
 # Local Installation
-This notebook uses Python 3.
+This notebook uses Python 3.6.
 
 1. Install required python packages with:
 ```bash
