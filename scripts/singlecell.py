@@ -8,6 +8,7 @@ import seaborn as sns
 from IPython.display import display
 from ipywidgets import (HTML, Button, Dropdown, HBox, IntSlider, Layout,
                         Output, SelectionSlider, Tab, Text, VBox)
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
 
