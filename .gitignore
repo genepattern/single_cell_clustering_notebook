@@ -1,6 +1,7 @@
 # data files
 data/matrix.txt
 data/analysis/
+*.h5ad
 scripts/Multicore-TSNE/
 notebooks/write/
 figures/
