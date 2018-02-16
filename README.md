@@ -1,4 +1,4 @@
-# Single-cell RNA-seq Clustering Analysis GenePattern Notebook
+# Single-cell RNA-seq Clustering Analysis Notebook
 
 [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
