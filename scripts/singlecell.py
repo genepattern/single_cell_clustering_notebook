@@ -8,8 +8,6 @@ import seaborn as sns
 from IPython.display import display
 from ipywidgets import (HTML, Button, Dropdown, HBox, IntSlider, Layout,
                         Output, SelectionSlider, Tab, Text, VBox)
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap
-from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
 
@@ -711,11 +709,6 @@ class SingleCellAnalysis:
             specific clusters; single-click hides/shows the cluster while double-click isolates the cluster.</p></div>
               '''.format(_LINE_HEIGHT))
 
-        tsne_plot_help = HTML(
-            '<b>NOTE:</b> Hover over the plot to interact. Click and drag to zoom. Click on the legend to hide or show specific clusters; single-click hides/shows the cluster while double-click isolates the cluster.'
-        )
-
-        param_info
         sliders = HBox([pc_slider, res_slider, perp_slider])
         ui = VBox([param_info, sliders, go_button])
 
@@ -1321,8 +1314,7 @@ class SingleCellAnalysis:
                 HTML('''
                 <div class="alert alert-success">
                 <p style="font-size:14px; line-height:{};">Exported data to <code>{}</code> in <code>.h5ad</code> format.</p>
-                </div>'''.
-                    format(_LINE_HEIGHT, path)))
+                </div>'''.format(_LINE_HEIGHT, path)))
 
         else:
             self.data.write_csvs(path, skip_data=False)
@@ -1332,5 +1324,4 @@ class SingleCellAnalysis:
                 HTML('''
                 <div class="alert alert-success">
                 <p style="font-size:14px; line-height:{};">Exported data to the <a href="{}" target="_blank">{}</a> folder as <code>.csv</code> files.</p>
-                </div>'''.
-                    format(_LINE_HEIGHT, path, path)))
+                </div>'''.format(_LINE_HEIGHT, path, path)))
