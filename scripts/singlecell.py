@@ -604,7 +604,6 @@ class SingleCellAnalysis:
         with pca_plot_box:
             py.iplot(pca_py_fig, show_link=False)
 
-    # TODO debug
     def _plot_pca(self):
         # mpl figure
         fig_elbow_plot = plt.figure(figsize=(6, 5), dpi=100)
@@ -1075,8 +1074,6 @@ class SingleCellAnalysis:
         plot_heatmap()
 
     def _plot_tsne_markers(self, title, gene_values):
-        # Declare grey to red colormap
-
         fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
         sns.regplot(
             x='tSNE_1',
