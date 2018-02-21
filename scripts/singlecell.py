@@ -699,10 +699,10 @@ class SingleCellAnalysis:
             '''<div class="alert alert-info" style="font-size:14px;line-height:{};">
             <h3 style="position: relative; top: -10px">Clustering Parameters</h3>
             <p>
-            <h4>Number of PCs (Principal Components)</h4>The number of principal components to use in clustering.
+            <h4>Number of PCs (Principal Components)</h4>The number of principal components to use in clustering.<br><br>
             <h4>Resolution</h4>Higher resolution means more and smaller clusters. We find that values 0.6-1.2 typically
             returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for
-            larger datasets.
+            larger datasets.<br><br>
             <h4>Perplexity</h4>The perplexity parameter loosely models the number of close neighbors each point has.
             <a href="https://distill.pub/2016/misread-tsne/">More info on how perplexity matters here</a>.<br><br>
             <b>NOTE:</b> Hover over the plot to interact. Click and drag to zoom. Click on the legend to hide or show
