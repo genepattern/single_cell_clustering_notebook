@@ -6,8 +6,8 @@ import pandas as pd
 import scipy.stats as st
 import seaborn as sns
 from IPython.display import display
-from ipywidgets import (HTML, Button, Dropdown, HBox, IntSlider, Layout,
-                        Output, SelectionSlider, Tab, Text, VBox)
+from ipywidgets import (HTML, Accordion, Button, Dropdown, HBox, IntSlider,
+                        Layout, Output, SelectionSlider, Tab, Text, VBox)
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
@@ -252,7 +252,8 @@ def _create_progress_bar():
         }
     </style>
     '''
-    progress_bar = HTML('''{}
+    progress_bar = HTML(
+        '''{}
     <div class="preloader-wrapper active">
         <div class="spinner-layer spinner-blue-only">
             <div class="circle-clipper left">
@@ -264,7 +265,8 @@ def _create_progress_bar():
             </div>
         </div>
     </div>
-    '''.format(style))
+    '''.format(style),
+        layout=Layout(width='100%'))
     return progress_bar
 
 
@@ -277,8 +279,10 @@ def _create_placeholder(kind):
     return HTML(placeholder_html, layout=Layout(padding='28px'))
 
 
-def _create_plot_help():
-    return HTML('<b>NOTE:</b> Hover over the plot to interact.')
+def _info_message(message):
+    return HTML(
+        '<div class="alert alert-info" style="font-size:14px; line-height:{};"><p><b>NOTE:</b> {}</p></div>'.
+        format(_LINE_HEIGHT, message))
 
 
 def _create_export_button(figure, fname):
@@ -436,7 +440,7 @@ class SingleCellAnalysis:
         def fig2_out_callback(e):
             fig2_out.clear_output()
             with fig2_out:
-                display(_create_plot_help())
+                display(_info_message('Hover over the plot to interact.'))
                 display(
                     _create_export_button(fig2,
                                           '1_setup_analysis_paired_qc_plots'))
@@ -591,7 +595,7 @@ class SingleCellAnalysis:
             format(_LINE_HEIGHT, cell_text, genes_text, v_genes_text, log_text,
                    regress_text, pca_help_text))
         display(output_div)
-        display(_create_plot_help())
+        display(_info_message('Hover over the plot to interact.'))
         pca_fig, pca_py_fig = self._plot_pca()
         display(
             _create_export_button(
@@ -691,7 +695,7 @@ class SingleCellAnalysis:
                 progress_bar.close()
 
         # Button widget
-        go_button = Button(description='Plot')
+        go_button = Button(description='Plot', button_style='info')
         go_button.on_click(plot_tsne_callback)
 
         # Parameter descriptions
@@ -705,12 +709,14 @@ class SingleCellAnalysis:
             larger datasets.<br><br>
             <h4>Perplexity</h4>The perplexity parameter loosely models the number of close neighbors each point has.
             <a href="https://distill.pub/2016/misread-tsne/">More info on how perplexity matters here</a>.<br><br>
-            <b>NOTE:</b> Hover over the plot to interact. Click and drag to zoom. Click on the legend to hide or show
-            specific clusters; single-click hides/shows the cluster while double-click isolates the cluster.</p></div>
+            </p></div>
               '''.format(_LINE_HEIGHT))
 
+        help_message = '''Hover over the plot to interact. Click and drag to zoom. Click on the legend to hide or show
+        specific clusters; single-click hides/shows the cluster while double-click isolates the cluster.'''
         sliders = HBox([pc_slider, res_slider, perp_slider])
-        ui = VBox([param_info, sliders, go_button])
+        ui = VBox(
+            [param_info, _info_message(help_message), sliders, go_button])
 
         plot_box = VBox([ui, plot_output])
         display(plot_box)
@@ -760,13 +766,15 @@ class SingleCellAnalysis:
                 legend=False)
 
         plt.title('tSNE Visualization', size=16)
-        ax.set_xlabel(ax.get_xlabel(), size=14)
-        ax.set_ylabel(ax.get_ylabel(), size=14)
+        ax.set_xlabel(ax.get_xlabel(), size=12)
+        ax.set_ylabel(ax.get_ylabel(), size=12)
         plt.tight_layout()
         plt.close()
 
         py_fig = tls.mpl_to_plotly(fig)
         py_fig['layout']['showlegend'] = True
+        py_fig['layout']['legend'] = {'orientation': 'h'}
+
         py_fig.update(data=[dict(name=c) for c in cluster_names])
 
         return fig, py_fig
@@ -799,19 +807,26 @@ class SingleCellAnalysis:
         marker_table_output = Output(layout=Layout(
             display='flex',
             justify_content='flex-start',
-            align_items='center',
+            align_items='flex-start',
             height='800px',
             width='100%',
+            padding='0',
             overflow_y='auto'))
-        marker_heatmap_output = Output(layout=Layout(
-            display='flex',
-            justify_content='center',
-            align_items='center',
-            height='900px',
-            width='100%'))
+        marker_heatmap_output = Output(
+            style='border: 1px solid green',
+            layout=Layout(
+                display='flex',
+                justify_content='flex-start',
+                align_items='flex-start',
+                height='1000px',
+                width='100%',
+                margin='0',
+                overflow_x='auto',
+                overflow_y='auto'))
 
         # Create main container
-        main_box = Tab(layout=Layout(padding='0 12px', width='62%'))
+        main_box = Tab(layout=Layout(
+            padding='0 12px', flex='1', min_width='500px'))
 
         # t-SNE marker plot container
         main_header_box = VBox()
@@ -833,11 +848,13 @@ class SingleCellAnalysis:
         main_box.set_title(0, 'Heatmap')
         main_box.set_title(1, 'tSNE Plot')
         # Table
-        explore_markers_box = VBox(layout=Layout(width='38%'))
+        explore_markers_box = Accordion(layout=Layout(
+            max_width='425px', orientation='vertical'))
         cluster_table_header_box = VBox()
         explore_markers_box.children = [
-            cluster_table_header_box, marker_table_output
+            VBox([cluster_table_header_box, marker_table_output])
         ]
+        explore_markers_box.set_title(0, 'Explore Markers')
 
         # ------------------------- Output Placeholders -------------------------
         with marker_plot_tab_1_output:
@@ -859,11 +876,10 @@ class SingleCellAnalysis:
                                          Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
                                       '''.format(_LINE_HEIGHT))
         gene_input = Text()
-        update_button = Button(description='Plot Expression')
+        update_button = Button(
+            description='Plot Expression', button_style='info')
         gene_input_box = HBox([gene_input, update_button])
-        main_header_box.children = [
-            gene_input_description, _create_plot_help(), gene_input_box
-        ]
+        main_header_box.children = [gene_input_description, gene_input_box]
 
         def check_gene_input(t):
             '''Don't allow submission of empty input.'''
@@ -958,18 +974,21 @@ class SingleCellAnalysis:
 
         # ------------------------- Heatmap -------------------------
 
-        heatmap_text = HTML(
-            '<h3>Visualize Top Markers</h3><p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>'.
-            format(_LINE_HEIGHT))
+        heatmap_text = HTML('''
+        <h3>Visualize Top Markers</h3>
+        <p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
+        '''.format(_LINE_HEIGHT))
         heatmap_n_markers = IntSlider(
             description="# markers", value=10, min=5, max=100, step=5)
         heatmap_test = Dropdown(
             description='test',
             options=['wilcoxon', 't-test'],
             value='wilcoxon')
-        heatmap_plot_button = Button(description='Plot')
+        heatmap_plot_button = Button(description='Plot', button_style='info')
         heatmap_header_box.children = [
-            heatmap_text, heatmap_n_markers, heatmap_test, heatmap_plot_button
+            heatmap_text, _info_message(
+                'Double-click the heatmap to zoom in and scroll for more detail.'
+            ), heatmap_n_markers, heatmap_test, heatmap_plot_button
         ]
 
         def plot_heatmap(button=None):
@@ -987,15 +1006,16 @@ class SingleCellAnalysis:
                         fig,
                         '3_perform_clustering_analysis_top_markers_heatmap_plot'
                     ))
+
                 display(fig)
                 top_marker_progress_bar.close()
 
         heatmap_plot_button.on_click(plot_heatmap)
 
         # ------------------------- Cluster Table -------------------------
-        cluster_table_header = HTML(
-            '<h3>Explore Markers</h3><p style="font-size:14px; line-height:{};">Test for differentially expressed genes between subpopulations of cells.</p>'.
-            format(_LINE_HEIGHT))
+        cluster_table_header = HTML('''
+        <p style="font-size:14px; line-height:{};">Test for differentially expressed genes between subpopulations of cells.</p>'''
+                                    .format(_LINE_HEIGHT))
 
         # Parameters for markers test
         cluster_param_box = HBox()
@@ -1014,7 +1034,8 @@ class SingleCellAnalysis:
             options=['test method', 'wilcoxon', 't-test'],
             value='wilcoxon',
             layout=Layout(width='90px'))
-        cluster_table_button = Button(description='Explore')
+        cluster_table_button = Button(
+            description='Explore', button_style='info')
         cluster_table_note = HTML('''
             <hr>
             <h4>Output Table Info</h4>
@@ -1027,8 +1048,7 @@ class SingleCellAnalysis:
             <li><code>pct.#</code>: number of cells in the second group that express the gene<br></li>
             </ul>
             <hr>
-            <b>Note:</b> Export the table using the menu, which can be accessed in the top left hand corner of the "Gene" column.</p>'''
-                                  .format(_LINE_HEIGHT, _LINE_HEIGHT))
+            '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
 
         def update_cluster_table(b):
             ident_1 = param_c_1.value
@@ -1063,8 +1083,10 @@ class SingleCellAnalysis:
         cluster_table_button.on_click(update_cluster_table)
 
         cluster_table_header_box.children = [
-            cluster_table_header, cluster_table_note, cluster_param_box,
-            param_test, cluster_table_button
+            _info_message('Click the header to hide/show the sidebar.'),
+            cluster_table_header, cluster_table_note, _info_message(
+                'Export the table using the menu, which can be accessed in the top left hand corner of the "Gene" column.'
+            ), cluster_param_box, param_test, cluster_table_button
         ]
 
         # ------------------------- Main Table -------------------------
@@ -1206,12 +1228,12 @@ class SingleCellAnalysis:
                     c,
                     TableDisplayCellHighlighter.SINGLE_COLUMN,
                     minColor='red',
-                    maxColor='grey')
+                    maxColor='white')
             else:
                 highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
                     c,
                     TableDisplayCellHighlighter.SINGLE_COLUMN,
-                    minColor='grey',
+                    minColor='white',
                     maxColor='red')
 
             table.addCellHighlighter(highlighter)
@@ -1282,6 +1304,8 @@ class SingleCellAnalysis:
                                 for c in cluster_names]).flatten()
         gene_colors = pd.Series(gene_labels).map(cmap).tolist()
 
+        dim = 12 * num_markers / 10
+        # Heatmap
         g = sns.clustermap(
             counts,
             row_cluster=False,
@@ -1289,8 +1313,17 @@ class SingleCellAnalysis:
             row_colors=gene_colors,
             col_colors=cell_colors,
             xticklabels=False,
-            figsize=(8, 14),
+            figsize=(dim, dim),
             cmap=_EXPRESSION_CMAP)
+
+        # Cell cluster legend
+        for label in cluster_names:
+            g.ax_col_dendrogram.bar(
+                0, 0, color=cmap[label], label=label, linewidth=0)
+        g.ax_col_dendrogram.legend(loc="center", ncol=8)
+
+        # Reposition colorbar
+        g.cax.set_position([.15, .2, .03, .45])
 
         hm = g.ax_heatmap
         hm.set_yticklabels(counts.index, {'fontsize': '10'})
