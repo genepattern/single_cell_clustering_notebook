@@ -1,4 +1,8 @@
 # data files
+matrix.mtx
+genes.tsv
+barcodes.tsv
+matrix.small.txt
 data/matrix.txt
 data/analysis/
 *.h5ad
