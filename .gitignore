@@ -3,6 +3,7 @@ matrix.mtx
 genes.tsv
 barcodes.tsv
 matrix.small.txt
+write/
 data/matrix.txt
 data/analysis/
 *.h5ad
