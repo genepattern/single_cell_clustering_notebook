@@ -15,4 +15,4 @@ pip install -r requirements.txt
 ```bash
 bash postBuild
 ```
-3. Launch Jupyter Notebook to open the notebook titled [Single Cell RNA-seq Clustering Analysis.ipynb](notebooks/Single%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
+3. Launch Jupyter Notebook to open the notebook titled [Single Cell RNA-seq Clustering Analysis.ipynb](Single-Cell%20RNA-seq%20Clustering%20Analysis%20Notebook.ipynb)
