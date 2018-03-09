@@ -1,3 +1,4 @@
+import os
 import warnings
 from copy import deepcopy
 
@@ -303,12 +304,14 @@ def _warning_message(message):
 
 
 def _create_export_button(figure, fname):
-
     # Default png
     filetype_dropdown = Dropdown(
         options=['png', 'svg', 'pdf'],
         value='png',
         layout=Layout(width='75px'))
+
+    if not os.path.isdir('figures'):
+        os.mkdir('figures')
 
     # Default filename value
     filename = 'figures/{}.{}'.format(fname, filetype_dropdown.value)
@@ -328,6 +331,8 @@ def _create_export_button(figure, fname):
 
     # Download file locally
     def save_fig(value_info):
+        if not os.path.isdir('figures'):
+            os.mkdir('figures')
         filename = 'figures/{}.{}'.format(fname, value_info['new'])
 
         # Disable button until file is properly saved
