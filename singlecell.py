@@ -422,18 +422,53 @@ class SingleCellAnalysis:
         ]
         measure_names = ['# of Genes', 'Total Counts', '% Mitochondrial Genes']
 
-        # Violin plots of single variables
-        sns.set_style("whitegrid")
-        fig1 = plt.figure(1, figsize=(12, 7))
-        subplot_num = 131
-        for m, m_name in zip(measures, measure_names):
-            ax = plt.subplot(subplot_num)
-            ax = sns.violinplot(data=m, inner=None, color="0.8", ax=ax)
-            ax = sns.stripplot(data=m, jitter=True, ax=ax)
-            ax.set_xlabel(m_name, size=16)
-            ax.set_xticklabels([''])
-            subplot_num += 1
-        plt.subplots_adjust(wspace=0.5)
+        # Pairplot of each variable
+        with sns.axes_style("whitegrid", {
+                'axes.edgecolor': 'black',
+                'grid.color': '0.9',
+                'xtick.color': 'black',
+                'ytick.color': 'black',
+                'xtick.direction': 'out',
+                'ytick.direction': 'out',
+                'xtick.major.size': '5',
+                'ytick.major.size': '5'
+        }):
+            g = sns.pairplot(
+                self.data.obs,
+                size=4,
+                diag_kind='kde',
+                plot_kws=dict(s=2, edgecolor="#1976D2", linewidth=0.5),
+                diag_kws=dict(shade=True, color='#1976D2'))
+
+        # Set limits to 0
+        for row in g.axes:
+            for ax in row:
+                ax.set_ylim(
+                    0, )
+                ax.set_xlim(
+                    0, )
+
+        # Set axes labels
+        xlabels, ylabels = [], []
+        for ax in g.axes[-1, :]:
+            xlabel = ax.xaxis.get_label_text()
+            xlabels.append(xlabel)
+        for ax in g.axes[:, 0]:
+            ylabel = ax.yaxis.get_label_text()
+            ylabels.append(ylabel)
+
+        measure_names = {
+            'n_genes': '# of Genes',
+            'n_counts': 'Total Counts',
+            'percent_mito': '% Mitochondrial Genes'
+        }
+
+        for i in range(len(xlabels)):
+            for j in range(len(ylabels)):
+                g.axes[j, i].xaxis.set_label_text(measure_names[xlabels[i]])
+                g.axes[j, i].yaxis.set_label_text(measure_names[ylabels[j]])
+
+        fig1 = g.fig
         plt.close()
 
         fig1_out = Output()
@@ -443,68 +478,22 @@ class SingleCellAnalysis:
                                       '1_setup_analysis_single_qc_plots'))
             display(fig1)
 
-        # Scatter plots of paired variables
-        fig2 = plt.figure(2, figsize=(12, 5))
-        ax1 = plt.subplot(121)
-        ax1 = sns.regplot(
-            x='Total Counts',
-            y='# of Genes',
-            data=pd.DataFrame(
-                [measures[1], measures[0]],
-                index=['Total Counts', '# of Genes']).T,
-            fit_reg=False,
-            ax=ax1)
-        ax1.set_xlabel(ax1.get_xlabel(), size=14)
-        ax1.set_ylabel(ax1.get_ylabel(), size=14)
-        ax2 = plt.subplot(122)
-        ax2 = sns.regplot(
-            x='Total Counts',
-            y='% Mitochondrial Genes',
-            data=pd.DataFrame(
-                [measures[1], measures[2]],
-                index=['Total Counts', '% Mitochondrial Genes']).T,
-            fit_reg=False,
-            ax=ax2)
-        ax2.set_xlabel(ax2.get_xlabel(), size=14)
-        ax2.set_ylabel(ax2.get_ylabel(), size=14)
-        plt.subplots_adjust(wspace=0.3)
-        plt.close()
-
-        fig2_out = Output()
-
-        def fig2_out_callback(e):
-            fig2_out.clear_output()
-            with fig2_out:
-                display(_info_message('Hover over the plot to interact.'))
-                display(
-                    _create_export_button(fig2,
-                                          '1_setup_analysis_paired_qc_plots'))
-                py.iplot_mpl(fig2, show_link=False)
-
-        fig2_out.on_displayed(fig2_out_callback)
-
         # Descriptive text
-        header = HTML(
-            '''<div class="alert alert-success" style='font-size:14px; line-height:{};'>
-               <h3 style="position: relative; top: -10px">Results</h3>
-               <p>Loaded <code>{}</code> cells and <code>{}</code> total genes.</p>
-               <h3>QC Metrics</h3>
-               <p>Use the displayed quality metrics to detect outliers cells and filter unwanted cells below in
-               <b>Step 2</b>.
-               An abnormally high number of genes or counts in a cell suggests a higher probability of a doublet.
-               High levels of mitochondrial genes is characteristic of broken/low quality cells.<br><br>
-               Some sensible ranges for this example dataset are:
-               <ol>
-               <li><code>0 to 2500</code> # of genes per cell</li>
-               <li><code>0 to 15000</code> counts per cell</li>
-               <li><code>0 to 15%</code> mitochondrial genes per cell</li>
-               </p></div>'''
-            .format(_LINE_HEIGHT, len(measures[0]), len(self.data.var_names)))
-        # Parent container
-        tabs = Tab(children=[fig1_out, fig2_out])
-        tabs.set_title(0, 'Individual Metrics')
-        tabs.set_title(1, 'Pairwise Metrics')
-        display(header, tabs)
+        header = _output_message('''<h3>Results</h3>
+        <p>Loaded <code>{}</code> cells and <code>{}</code> total genes.</p>
+        <h3>QC Metrics</h3>
+        <p>Use the displayed quality metrics to detect outliers cells and filter unwanted cells below in
+        <b>Step 2</b>.
+        An abnormally high number of genes or counts in a cell suggests a higher probability of a doublet.
+        High levels of mitochondrial genes is characteristic of broken/low quality cells.<br><br>
+        Some sensible ranges for this example dataset are:
+        <ol>
+        <li><code>0 to 2500</code> # of genes per cell</li>
+        <li><code>0 to 15000</code> counts per cell</li>
+        <li><code>0 to 15%</code> mitochondrial genes per cell</li>
+        </p>'''.format(len(measures[0]), len(self.data.var_names)))
+
+        display(header, fig1_out)
 
     # -------------------- PREPROCESS COUNTS --------------------
 
