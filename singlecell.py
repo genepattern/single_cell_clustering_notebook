@@ -1,13 +1,16 @@
+import warnings
 from copy import deepcopy
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import requests
 import scipy.stats as st
 import seaborn as sns
 from IPython.display import display
-from ipywidgets import (HTML, Accordion, Button, Dropdown, HBox, IntSlider,
-                        Layout, Output, FloatProgress, SelectionSlider, Tab, Text,
+from ipywidgets import (HTML, Accordion, Button, Dropdown, FloatProgress, HBox,
+                        IntSlider, Layout, Output, SelectionSlider, Tab, Text,
                         VBox)
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
@@ -15,11 +18,11 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 
 import plotly.offline as py
 import plotly.tools as tls
-import requests
 import scanpy.api as sc
 from beakerx import TableDisplay, TableDisplayCellHighlighter
 
 py.init_notebook_mode()
+warnings.simplefilter('ignore', UserWarning)
 
 # -------------------- HELPERS --------------------
 
@@ -268,7 +271,7 @@ def _create_progress_bar():
         </div>
     </div>
     '''.format(style),
-        layout=Layout(width='100%'))
+        layout=Layout(height='150px', width='100%'))
     return progress_bar
 
 
@@ -283,8 +286,20 @@ def _create_placeholder(kind):
 
 def _info_message(message):
     return HTML(
-        '<div class="alert alert-info" style="font-size:14px; line-height:{};"><p><b>NOTE:</b> {}</p></div>'.
-        format(_LINE_HEIGHT, message))
+        '<div class="alert alert-info" style="font-size:14px; line-height:20px;"><p><b>NOTE:</b> {}</p></div>'.
+        format(message))
+
+
+def _output_message(message):
+    return HTML(
+        '<div class="well well-sm" style="font-size:14px; line-height:20px; padding: 15px;">{}</div>'.
+        format(message))
+
+
+def _warning_message(message):
+    return HTML(
+        '<div class="alert alert-warning" style="font-size:14px; line-height:20px;">{}</div>'.
+        format(message))
 
 
 def _create_export_button(figure, fname):
@@ -350,13 +365,13 @@ def _download_text_file(url):
 
     display(progress_bar)
     f = open(filename, 'wb')
-    for chunk in r.iter_content(chunk_size = chunk_size):
+    for chunk in r.iter_content(chunk_size=chunk_size):
         f.write(chunk)
         progress_bar.value += 1
 
     f.close()
     progress_bar.close()
-    display(HTML('<p>Saved <code>{}</code>.</p>'.format(filename)))
+    display(HTML('<p>Downloaded file: <code>{}</code>.</p>'.format(filename)))
 
     return filename
 
@@ -364,19 +379,30 @@ def _download_text_file(url):
 class SingleCellAnalysis:
     """docstring for SingleCellAnalysis."""
 
-    def __init__(self):
+    def __init__(self, verbose=False):
         self.data = ''
+        self.verbose = verbose
+        mpl.rcParams['figure.dpi'] = 80
 
     # -------------------- SETUP ANALYSIS --------------------
     def setup_analysis(self, matrix_filepath):
         '''
         Load a raw count matrix for a single-cell RNA-seq experiment.
         '''
+        # Hide FutureWarnings.
+        warnings.simplefilter('ignore',
+                              FutureWarning) if self.verbose else None
+
         self._setup_analysis(matrix_filepath)
         self._setup_analysis_ui()
 
+        # Revert to default settings to show FutureWarnings.
+        warnings.simplefilter('default',
+                              FutureWarning) if self.verbose else None
+
     def _setup_analysis(self, matrix_filepath):
         # Downloads matrix if detects URL
+        local_matrix_filepath = matrix_filepath
         if matrix_filepath.startswith('http'):
             local_matrix_filepath = _download_text_file(matrix_filepath)
         data = sc.read(local_matrix_filepath, cache=True).transpose()
@@ -509,6 +535,10 @@ class SingleCellAnalysis:
         '''
         Perform cell quality control by evaluating quality metrics, normalizing counts, scaling, and correcting for effects of total counts per cell and the percentage of mitochondrial genes expressed. Also detect highly variable genes and perform linear dimensional reduction (PCA).
         '''
+        # Hide FutureWarnings.
+        warnings.simplefilter('ignore',
+                              FutureWarning) if self.verbose else None
+
         if min_n_cells == '':
             min_n_cells = 0
         if min_n_genes == '':
@@ -537,17 +567,22 @@ class SingleCellAnalysis:
         success_run = self._preprocess_counts(
             min_n_cells, n_genes_range, n_counts_range, percent_mito_range,
             normalization_method)
+
         # Build UI output
         if success_run:
             self._preprocess_counts_ui(orig_n_cells, orig_n_genes)
+
+        # Revert to default settings to show FutureWarnings.
+        warnings.simplefilter('default',
+                              FutureWarning) if self.verbose else None
 
     def _preprocess_counts(self, min_n_cells, n_genes_range, n_counts_range,
                            percent_mito_range, normalization_method):
         if self.data.raw:
             display(
-                HTML(
-                    '<div class="alert alert-warning" style="font-size:14px; line-height:{};">This data has already been preprocessed. Please run <code>Step 1: Setup Analysis</code> again if you would like to perform preprocessing again.</div>'.
-                    format(_LINE_HEIGHT)))
+                _warning_message(
+                    'This data has already been preprocessed. Please run <a href="#Step-1:-Setup-Analysis">Step 1: Setup Analysis</a> again if you would like to perform preprocessing again.</div>'
+                ))
             return False
 
         # Gene filtering
@@ -615,10 +650,10 @@ class SingleCellAnalysis:
         pca_help_text = '''<h3>Dimensional Reduction: Principal Components</h3>
         <p>Use the following plot showing the standard deviations of the principal components to determine the number of relevant components to use downstream.</p>'''
 
-        output_div = HTML(
-            '''<div class='alert alert-success' style='font-size:14px; line-height:{};'><h3 style="position: relative; top: -10px">Results</h3>{}{}{}{}{}{}</div>'''.
-            format(_LINE_HEIGHT, cell_text, genes_text, v_genes_text, log_text,
-                   regress_text, pca_help_text))
+        output_div = _output_message(
+            '''<h3 style="position: relative; top: -10px">Results</h3>{}{}{}{}{}{}'''.
+            format(cell_text, genes_text, v_genes_text, log_text, regress_text,
+                   pca_help_text))
         display(output_div)
         display(_info_message('Hover over the plot to interact.'))
         pca_fig, pca_py_fig = self._plot_pca()
@@ -636,7 +671,7 @@ class SingleCellAnalysis:
 
     def _plot_pca(self):
         # mpl figure
-        fig_elbow_plot = plt.figure(figsize=(6, 5), dpi=100)
+        fig_elbow_plot = plt.figure(figsize=(6, 5))
         pc_std = self.data.obsm['X_pca'].std(axis=0).tolist()
         pc_std = pd.Series(
             pc_std, index=[x + 1 for x in list(range(len(pc_std)))])
@@ -659,6 +694,9 @@ class SingleCellAnalysis:
     # -------------------- Cluster Cells --------------------
 
     def cluster_cells(self, pcs=10, resolution=1.2, perplexity=30):
+        # Hide FutureWarnings.
+        warnings.simplefilter('ignore',
+                              FutureWarning) if self.verbose else None
 
         # -------------------- tSNE PLOT --------------------
         pc_sdev = pd.Series(np.std(self.data.obsm['X_pca'], axis=0))
@@ -724,8 +762,7 @@ class SingleCellAnalysis:
         go_button.on_click(plot_tsne_callback)
 
         # Parameter descriptions
-        param_info = HTML(
-            '''<div class="alert alert-info" style="font-size:14px;line-height:{};">
+        param_info = _output_message('''
             <h3 style="position: relative; top: -10px">Clustering Parameters</h3>
             <p>
             <h4>Number of PCs (Principal Components)</h4>The number of principal components to use in clustering.<br><br>
@@ -733,9 +770,8 @@ class SingleCellAnalysis:
             returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for
             larger datasets.<br><br>
             <h4>Perplexity</h4>The perplexity parameter loosely models the number of close neighbors each point has.
-            <a href="https://distill.pub/2016/misread-tsne/">More info on how perplexity matters here</a>.<br><br>
-            </p></div>
-              '''.format(_LINE_HEIGHT))
+            <a href="https://distill.pub/2016/misread-tsne/">More info on how perplexity matters here</a>.
+            </p>''')
 
         help_message = '''Hover over the plot to interact. Click and drag to zoom. Click on the legend to hide or show
         specific clusters; single-click hides/shows the cluster while double-click isolates the cluster.'''
@@ -746,6 +782,10 @@ class SingleCellAnalysis:
         plot_box = VBox([ui, plot_output])
         display(plot_box)
         plot_tsne_callback()
+
+        # Revert to default settings to show FutureWarnings.
+        warnings.simplefilter('default',
+                              FutureWarning) if self.verbose else None
 
     def _run_tsne(self, pcs, resolution, perplexity):
         sc.tl.tsne(
@@ -778,7 +818,7 @@ class SingleCellAnalysis:
         colors = dict(zip(cluster_names, palette))
 
         # Plot each group as a separate trace
-        fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=100)
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
         for c, group in tsne_coordinates.groupby(by='colors'):
             group.plot(
                 x='tSNE_1',
@@ -807,6 +847,10 @@ class SingleCellAnalysis:
     # -------------------- MARKER ANALYSIS --------------------
 
     def visualize_markers(self):
+        # Hide FutureWarnings.
+        warnings.simplefilter('ignore',
+                              FutureWarning) if self.verbose else None
+
         # Commonly used data
         cell_clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
@@ -915,16 +959,29 @@ class SingleCellAnalysis:
 
         def update_query_plots(b):
             # Format gene list. Split by comma, remove whitespace, then split by whitespace.
-            gene_list = str(gene_input.value).split(',')
-            gene_list = [gene.strip().upper() for gene in gene_list]
+            gene_list = str(gene_input.value).upper()
+            gene_list = gene_list.split(',')
+            gene_list = [s.split(' ') for s in gene_list]
+            gene_list = np.concatenate(gene_list).ravel().tolist()
+            gene_list = [gene for gene in gene_list if gene.strip()]
 
             if len(gene_list) == 1:
-                gene_list = [gene_list[0].strip()]
+                gene_list = [gene_list[0]]
 
             # Retrieve expression
-            gene_locs = [
-                self.data.raw.var_names.get_loc(gene) for gene in gene_list
-            ]
+            gene_locs = []
+            for gene in gene_list:
+                if gene in self.data.raw.var_names:
+                    gene_locs.append(self.data.raw.var_names.get_loc(gene))
+                else:
+                    # Gene not found
+                    marker_plot_tab_1_output.clear_output()
+                    with marker_plot_tab_1_output:
+                        display(
+                            _warning_message(
+                                'The gene <code>{}</code> was not found. Try again.'.
+                                format(gene)))
+                    return
             if type(self.data.raw.X) in [np.array, np.ndarray]:
                 gene_values = pd.DataFrame(self.data.raw.X[:, gene_locs])
             else:
@@ -970,7 +1027,7 @@ class SingleCellAnalysis:
                 display(tab2_progress_bar)
 
                 # generate tSNE clusters plot
-                tsne_fig, tsne_py_fig = self._plot_tsne(figsize=(5, 5))
+                tsne_fig, tsne_py_fig = self._plot_tsne(figsize=(5, 5.5))
 
                 display(
                     _create_export_button(
@@ -1075,7 +1132,7 @@ class SingleCellAnalysis:
             <hr>
             '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
 
-        def update_cluster_table(b):
+        def update_cluster_table(b=None):
             ident_1 = param_c_1.value
             ident_2 = param_c_2.value
             test = param_test.value
@@ -1120,9 +1177,14 @@ class SingleCellAnalysis:
         top_box = HBox([main_box, explore_markers_box])
         display(top_box)
         plot_heatmap()
+        update_cluster_table()
+
+        # Revert to default settings to show FutureWarnings.
+        warnings.simplefilter('default',
+                              FutureWarning) if self.verbose else None
 
     def _plot_tsne_markers(self, title, gene_values):
-        fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=100)
+        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         sns.regplot(
             x='tSNE_1',
             y='tSNE_2',
@@ -1143,7 +1205,7 @@ class SingleCellAnalysis:
         return fig
 
     def _plot_violin_plots(self, gene, gene_values):
-        fig = plt.figure(figsize=(5.5, 3), dpi=100)
+        fig = plt.figure(figsize=(5.5, 3))
         ax = plt.gca()
         groups = self.data.obs['louvain_groups']
         sns.stripplot(
@@ -1360,26 +1422,25 @@ class SingleCellAnalysis:
     # -------------------- FILE EXPORT --------------------
 
     def export_data(self, path, h5ad=False):
+        # Hide "omitting to write sparse annotation message" from scanpy.
+        warnings.simplefilter('ignore', UserWarning)
         if h5ad:
             if not path.endswith('.h5ad'):
                 path = path + '.h5ad'
             self.data.write(path)
 
-            # User feedback
-            display(
-                HTML('''
-                <div class="alert alert-success">
-                <h3 style="position: relative; top: -10px">Results</h3>
-                <p style="font-size:14px; line-height:{};">Exported data to <code>{}</code> in <code>.h5ad</code> format.</p>
-                </div>'''.format(_LINE_HEIGHT, path)))
-
+            path_message = '<code>{}</code> in .h5ad format.'.format(path)
         else:
             self.data.write_csvs(path, skip_data=False)
+            path_message = 'the <a href="{}" target="_blank">{}</a> folder as <code>.csv</code> files.'.format(
+                path, path)
 
-            # User feedback
-            display(
-                HTML('''
-                <div class="alert alert-success">
-                <h3 style="position: relative; top: -10px">Results</h3>
-                <p style="font-size:14px; line-height:{};">Exported data to the <a href="{}" target="_blank">{}</a> folder as <code>.csv</code> files.</p>
-                </div>'''.format(_LINE_HEIGHT, path, path)))
+        # User feedback
+        display(
+            _output_message('''
+            <h3 style="position: relative; top: -10px">Results</h3>
+            <p style="font-size:14px; line-height:{};">Exported data to {}</p>
+            </div>'''.format(path_message)))
+
+        # Turn user warnings back on.
+        warnings.simplefilter('default', UserWarning)
