@@ -1444,7 +1444,7 @@ class SingleCellAnalysis:
         display(
             _output_message('''
             <h3 style="position: relative; top: -10px">Results</h3>
-            <p style="font-size:14px; line-height:{};">Exported data to {}</p>
+            <p style="font-size:14px; line-height:20px;">Exported data to {}</p>
             </div>'''.format(path_message)))
 
         # Turn user warnings back on.
