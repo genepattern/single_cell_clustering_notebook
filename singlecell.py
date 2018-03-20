@@ -620,7 +620,7 @@ class SingleCellAnalysis:
 
         # Identify highly-variable genes.
         sc.pp.filter_genes_dispersion(
-            self.data, min_mean=0.1, max_mean=8, min_disp=1)
+            self.data, min_mean=0.0125, max_mean=3, min_disp=0.5)
 
         # Logarithmize the data.
         if normalization_method == 'LogNormalize' and self.data.is_log is False:
@@ -650,7 +650,7 @@ class SingleCellAnalysis:
             log_text = '<p>Data is log normalized.</p>'
         else:
             log_text = '<p>Data is not normalized.</p>'
-        regress_text = '''<p>Performed batch effect removal based on:</p><ol><li># of detected molecules per cell</li>
+        regress_text = '''<p>Perform linear regression to remove unwanted sources of variation including:</p><ol><li># of detected molecules per cell</li>
             <li>% mitochondrial gene content</li></ol>'''
         pca_help_text = '''<h3>Dimensional Reduction: Principal Components</h3>
         <p>Use the following plot showing the standard deviations of the principal components to determine the number of relevant components to use downstream.</p>'''
@@ -752,7 +752,7 @@ class SingleCellAnalysis:
                 # perform tSNE calculation and plot
                 self._run_tsne(pc_slider.value, res_slider.value,
                                perp_slider.value)
-                tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(8, 6.5))
+                tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(10, 8))
 
                 display(
                     _create_export_button(
@@ -833,7 +833,7 @@ class SingleCellAnalysis:
                 label=c,
                 alpha=0.7,
                 ax=ax,
-                legend=False)
+                legend=True)
 
         plt.title('tSNE Visualization', size=16)
         ax.set_xlabel(ax.get_xlabel(), size=12)
@@ -842,6 +842,8 @@ class SingleCellAnalysis:
         plt.close()
 
         py_fig = tls.mpl_to_plotly(fig)
+        # Let plotly generate legend for plotly fig
+        py_fig['layout']['annotations'] = []
         py_fig['layout']['showlegend'] = True
         py_fig['layout']['legend'] = {'orientation': 'h'}
 
@@ -1014,7 +1016,7 @@ class SingleCellAnalysis:
                 display(tab1_progress_bar)
 
                 # generate tSNE markers plot
-                tsne_markers_fig = self._plot_tsne_markers(title, values)
+                tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
 
                 # Hide progress bar
@@ -1032,7 +1034,7 @@ class SingleCellAnalysis:
                 display(tab2_progress_bar)
 
                 # generate tSNE clusters plot
-                tsne_fig, tsne_py_fig = self._plot_tsne(figsize=(5, 5.5))
+                tsne_fig, tsne_py_fig = self._plot_tsne(figsize=(6.5, 7))
 
                 display(
                     _create_export_button(
@@ -1188,8 +1190,8 @@ class SingleCellAnalysis:
         warnings.simplefilter('default',
                               FutureWarning) if self.verbose else None
 
-    def _plot_tsne_markers(self, title, gene_values):
-        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    def _plot_tsne_markers(self, title, gene_values, figsize):
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
         sns.regplot(
             x='tSNE_1',
             y='tSNE_2',
@@ -1210,7 +1212,7 @@ class SingleCellAnalysis:
         return fig
 
     def _plot_violin_plots(self, gene, gene_values):
-        fig = plt.figure(figsize=(5.5, 3))
+        fig = plt.figure(figsize=(8, 5))
         ax = plt.gca()
         groups = self.data.obs['louvain_groups']
         sns.stripplot(
@@ -1418,7 +1420,7 @@ class SingleCellAnalysis:
         g.cax.set_position([.15, .2, .03, .45])
 
         hm = g.ax_heatmap
-        hm.set_yticklabels(counts.index, {'fontsize': '10'})
+        hm.set_yticklabels(counts.index, {'fontsize': '9'})
         hm.set_yticks([x + 0.5 for x in range(len(counts.index))])
 
         plt.close()
