@@ -1432,12 +1432,18 @@ class SingleCellAnalysis:
         # Hide "omitting to write sparse annotation message" from scanpy.
         warnings.simplefilter('ignore', UserWarning)
         if h5ad:
+            # Assume same directory if simple filename
+            if '/' not in path:
+                path = './' + path
+
+            # Append .h5ad suffix
             if not path.endswith('.h5ad'):
                 path = path + '.h5ad'
             self.data.write(path)
 
             path_message = '<code>{}</code> in .h5ad format.'.format(path)
         else:
+            # Export AnnData object as series of csv files.
             self.data.write_csvs(path, skip_data=False)
             path_message = 'the <a href="{}" target="_blank">{}</a> folder as <code>.csv</code> files.'.format(
                 path, path)
