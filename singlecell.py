@@ -611,9 +611,8 @@ class SingleCellAnalysis:
         # in `data_raw`.
         if normalization_method == 'LogNormalize' and self.data.is_log is False:
             data_raw = sc.pp.log1p(self.data, copy=True)
-            self.data.raw = data_raw
-        else:
-            self.data.raw = deepcopy(self.data.X)
+
+        self.data.raw = self.data
 
         # Per-cell scaling.
         sc.pp.normalize_per_cell(self.data, counts_per_cell_after=1e4)

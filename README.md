@@ -1,6 +1,6 @@
 # Single-cell RNA-seq Clustering Analysis Notebook
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/ckmah/seurat_python_notebook/master?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/genepattern/seurat_python_notebook/master?urlpath=notebooks%2Fnotebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
 Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
 
