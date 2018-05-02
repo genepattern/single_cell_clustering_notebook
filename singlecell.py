@@ -1143,6 +1143,8 @@ class SingleCellAnalysis:
             <hr>
             '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
 
+        cluster_param_header = HTML('<h4>Compare Clusters</h4>')
+
         def update_cluster_table(b=None):
             ident_1 = param_c_1.value
             ident_2 = param_c_2.value
@@ -1179,7 +1181,7 @@ class SingleCellAnalysis:
             _info_message('Click the header to hide/show the sidebar.'),
             cluster_table_header, cluster_table_note, _info_message(
                 'Export the table using the menu, which can be accessed in the top left hand corner of the "Gene" column.'
-            ), cluster_param_box, param_test, cluster_table_button
+            ), cluster_param_header, cluster_param_box, param_test, cluster_table_button
         ]
 
         # ------------------------- Main Table -------------------------
