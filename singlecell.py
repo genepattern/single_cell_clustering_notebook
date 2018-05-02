@@ -494,10 +494,11 @@ class SingleCellAnalysis:
             'percent_mito': '% Mitochondrial Genes'
         }
 
-        for i in range(len(xlabels)):
-            for j in range(len(ylabels)):
-                g.axes[j, i].xaxis.set_label_text(measure_names[xlabels[i]])
-                g.axes[j, i].yaxis.set_label_text(measure_names[ylabels[j]])
+        for j in range(len(xlabels)):
+            g.axes[len(xlabels) - 1, j].xaxis.set_label_text(measure_names[xlabels[j]])
+
+        for i in range(len(ylabels)):
+            g.axes[i, 0].yaxis.set_label_text(measure_names[ylabels[i]])
 
         fig1 = g.fig
         plt.close()
