@@ -677,17 +677,21 @@ class SingleCellAnalysis:
     def _plot_pca(self):
         # mpl figure
         fig_elbow_plot = plt.figure(figsize=(6, 5))
-        pc_std = self.data.obsm['X_pca'].std(axis=0).tolist()
-        pc_std = pd.Series(
-            pc_std, index=[x + 1 for x in list(range(len(pc_std)))])
-        pc_std = pc_std.iloc[:min(len(pc_std), 30)]
-        plt.plot(pc_std, 'o')
+        pc_var = self.data.uns['pca_variance_ratio']
+        pc_var = pc_var[:min(len(pc_var), 30)]
+
+        # Calculate percent variance explained
+        pc_var = [v / sum(pc_var) * 100 for v in pc_var]
+
+        pc_var = pd.Series(pc_var, index=[x + 1 for x in range(len(pc_var))])
+
+        plt.plot(pc_var, 'o')
         ax = fig_elbow_plot.gca()
         ax.set_xlim(left=0)
         ax.get_xaxis().set_major_locator(MaxNLocator(integer=True))
         ax.get_xaxis().set_minor_locator(MaxNLocator(integer=True))
         ax.set_xlabel('Principal Component', size=16)
-        ax.set_ylabel('Variance of PC', size=16)
+        ax.set_ylabel('% Variance Explained', size=16)
         plt.close()
 
         # plot interactive
