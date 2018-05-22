@@ -441,6 +441,7 @@ class SingleCellAnalysis:
         data.obs['percent_mito'] = np.sum(
             data[:, mito_genes].X, axis=1) / np.sum(
                 data.X, axis=1)
+
         # add the total counts per cell as observations-annotation to data
         data.obs['n_counts'] = np.sum(data.X, axis=1)
         data.is_log = False
@@ -514,15 +515,23 @@ class SingleCellAnalysis:
         header = _output_message('''<h3>Results</h3>
         <p>Loaded <code>{}</code> cells and <code>{}</code> total genes.</p>
         <h3>QC Metrics</h3>
-        <p>Use the displayed quality metrics to detect outliers cells and filter unwanted cells below in
-        <b>Step 2</b>.
-        An abnormally high number of genes or counts in a cell suggests a higher probability of a doublet.
-        High levels of mitochondrial genes is characteristic of broken/low quality cells.<br><br>
-        Some sensible ranges for this example dataset are:
+        <p>Use the displayed quality metrics to visually identify outliers cells and filter unwanted cells in
+        <b>Step 2</b>.<br><br>
+        There are 3 metrics including:
+        <ol>
+        <li>the number of genes detected in each cell</li>
+        <li>the total read counts in each cell</li>
+        <li>the percentage of counts mapped to mitochondrial genes</li>
+        </ol>
+        A high percentage of reads mapped to mitochondrial genes indicates the cell may have lysed before isolation,
+        losing cytoplasmic RNA and retaining RNA enclosed in the mitochondria. An abnormally high number of genes
+        or counts in a cell suggests a higher probability of a doublet.
+        <br><br>
+        Some sensible ranges for the example dataset are:
         <ol>
         <li><code>0 to 2500</code> # of genes per cell</li>
-        <li><code>0 to 15000</code> counts per cell</li>
-        <li><code>0 to 15%</code> mitochondrial genes per cell</li>
+        <li><code>0 to 15000</code> total read counts per cell</li>
+        <li><code>0 to 15%</code> reads mapped to mitochondrial genes per cell</li>
         </p>'''.format(len(measures[0]), len(self.data.var_names)))
 
         display(header, fig1_out)
