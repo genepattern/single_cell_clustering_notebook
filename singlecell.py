@@ -448,10 +448,10 @@ class SingleCellAnalysis:
         self.data = data
 
     def _setup_analysis_ui(self):
-        measures = [
+        measures = pd.DataFrame([
             self.data.obs['n_genes'], self.data.obs['n_counts'],
             self.data.obs['percent_mito'] * 100
-        ]
+        ]).T
         measure_names = ['# of Genes', 'Total Counts', '% Mitochondrial Genes']
 
         # Pairplot of each variable
@@ -466,7 +466,7 @@ class SingleCellAnalysis:
                 'ytick.major.size': '5'
         }):
             g = sns.pairplot(
-                self.data.obs,
+                measures,
                 size=4,
                 diag_kind='kde',
                 plot_kws=dict(s=2, edgecolor="#1976D2", linewidth=0.5),
@@ -532,7 +532,7 @@ class SingleCellAnalysis:
         <li><code>0 to 2500</code> # of genes per cell</li>
         <li><code>0 to 15000</code> total read counts per cell</li>
         <li><code>0 to 15%</code> reads mapped to mitochondrial genes per cell</li>
-        </p>'''.format(len(measures[0]), len(self.data.var_names)))
+        </p>'''.format(measures.shape[0], len(self.data.var_names)))
 
         display(header, fig1_out)
 
@@ -622,7 +622,7 @@ class SingleCellAnalysis:
         if normalization_method == 'LogNormalize' and self.data.is_log is False:
             data_raw = sc.pp.log1p(self.data, copy=True)
 
-        self.data.raw = self.data
+        self.data.raw = data_raw
 
         # Per-cell scaling.
         sc.pp.normalize_per_cell(self.data, counts_per_cell_after=1e4)
@@ -776,7 +776,7 @@ class SingleCellAnalysis:
 
                 display(
                     _create_export_button(
-                        tsne_fig, '3_perform_clustering_analysis_tsne_plot'))
+                        tsne_fig, '3_cluster_cells_tsne_plot'))
                 py.iplot(py_tsne_fig, show_link=False)
 
                 # close progress bar
@@ -1051,7 +1051,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         tsne_markers_fig,
-                        '3_perform_clustering_analysis_marker_tsne_plot'))
+                        '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
 
             marker_plot_tab_2_output.clear_output()
@@ -1064,7 +1064,7 @@ class SingleCellAnalysis:
 
                 display(
                     _create_export_button(
-                        tsne_fig, '3_perform_clustering_analysis_tsne_plot'))
+                        tsne_fig, '4_visualize_analysis_tsne_plot'))
                 py.iplot(tsne_py_fig, show_link=False)
 
                 # Hide progress bar
@@ -1077,7 +1077,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         marker_violin_plot,
-                        '3_perform_clustering_analysis_marker_violin_plot'))
+                        '4_visualize_marker_violin_plot'))
                 display(
                     HTML('<h3>{} Expression Across Clusters</h3>'.format(
                         title)))
@@ -1119,7 +1119,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         fig,
-                        '3_perform_clustering_analysis_top_markers_heatmap_plot'
+                        '4_visualize_top_markers_heatmap_plot'
                     ))
 
                 display(fig)
@@ -1157,10 +1157,10 @@ class SingleCellAnalysis:
             <p style="font-size:14px; line-height:{};">
             <ul style="list-style-position: inside; padding-left: 0; font-size:14px; line-height:{};">
             <li><code>Gene</code>: the gene name<br></li>
-            <li><code>adj p-value</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
-            <li><code>avg logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
-            <li><code>pct.#</code>: # of cells in the first group that express the gene<br></li>
-            <li><code>pct.#</code>: # of cells in the second group that express the gene<br></li>
+            <li><code>adj.pval</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
+            <li><code>logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the first group that express the gene<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the second group that express the gene<br></li>
             </ul>
             <hr>
             '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
@@ -1335,11 +1335,15 @@ class SingleCellAnalysis:
         pct_2 = ['%.2f' % e for e in pct_2]
 
         # Return as interactive table
+        if ident_2 == 'rest':
+            pct_expr_2_prefix = '%.expr.'
+        else:
+            pct_expr_2_prefix = '%.expr.c'
         results = pd.DataFrame(
             [marker_names, marker_scores, log_fc, pct_1, pct_2],
             index=[
-                'Gene', 'adj p-value', 'avg logFC', 'pct.{}'.format(ident_1),
-                'pct.{}'.format(ident_2)
+                'Gene', 'adj.pval', 'logFC', '%.expr.c{}'.format(ident_1),
+                '{}{}'.format(pct_expr_2_prefix, ident_2)
             ]).T
         results.set_index(['Gene'], inplace=True)
         table = TableDisplay(results)
