@@ -441,16 +441,17 @@ class SingleCellAnalysis:
         data.obs['percent_mito'] = np.sum(
             data[:, mito_genes].X, axis=1) / np.sum(
                 data.X, axis=1)
+
         # add the total counts per cell as observations-annotation to data
         data.obs['n_counts'] = np.sum(data.X, axis=1)
         data.is_log = False
         self.data = data
 
     def _setup_analysis_ui(self):
-        measures = [
+        measures = pd.DataFrame([
             self.data.obs['n_genes'], self.data.obs['n_counts'],
             self.data.obs['percent_mito'] * 100
-        ]
+        ]).T
         measure_names = ['# of Genes', 'Total Counts', '% Mitochondrial Genes']
 
         # Pairplot of each variable
@@ -465,7 +466,7 @@ class SingleCellAnalysis:
                 'ytick.major.size': '5'
         }):
             g = sns.pairplot(
-                self.data.obs,
+                measures,
                 size=4,
                 diag_kind='kde',
                 plot_kws=dict(s=2, edgecolor="#1976D2", linewidth=0.5),
@@ -494,10 +495,11 @@ class SingleCellAnalysis:
             'percent_mito': '% Mitochondrial Genes'
         }
 
-        for i in range(len(xlabels)):
-            for j in range(len(ylabels)):
-                g.axes[j, i].xaxis.set_label_text(measure_names[xlabels[i]])
-                g.axes[j, i].yaxis.set_label_text(measure_names[ylabels[j]])
+        for j in range(len(xlabels)):
+            g.axes[len(xlabels) - 1, j].xaxis.set_label_text(measure_names[xlabels[j]])
+
+        for i in range(len(ylabels)):
+            g.axes[i, 0].yaxis.set_label_text(measure_names[ylabels[i]])
 
         fig1 = g.fig
         plt.close()
@@ -513,16 +515,24 @@ class SingleCellAnalysis:
         header = _output_message('''<h3>Results</h3>
         <p>Loaded <code>{}</code> cells and <code>{}</code> total genes.</p>
         <h3>QC Metrics</h3>
-        <p>Use the displayed quality metrics to detect outliers cells and filter unwanted cells below in
-        <b>Step 2</b>.
-        An abnormally high number of genes or counts in a cell suggests a higher probability of a doublet.
-        High levels of mitochondrial genes is characteristic of broken/low quality cells.<br><br>
-        Some sensible ranges for this example dataset are:
+        <p>Use the displayed quality metrics to visually identify outliers cells and filter unwanted cells in
+        <b>Step 2</b>.<br><br>
+        There are 3 metrics including:
+        <ol>
+        <li>the number of genes detected in each cell</li>
+        <li>the total read counts in each cell</li>
+        <li>the percentage of counts mapped to mitochondrial genes</li>
+        </ol>
+        A high percentage of reads mapped to mitochondrial genes indicates the cell may have lysed before isolation,
+        losing cytoplasmic RNA and retaining RNA enclosed in the mitochondria. An abnormally high number of genes
+        or counts in a cell suggests a higher probability of a doublet.
+        <br><br>
+        Some sensible ranges for the example dataset are:
         <ol>
         <li><code>0 to 2500</code> # of genes per cell</li>
-        <li><code>0 to 15000</code> counts per cell</li>
-        <li><code>0 to 15%</code> mitochondrial genes per cell</li>
-        </p>'''.format(len(measures[0]), len(self.data.var_names)))
+        <li><code>0 to 15000</code> total read counts per cell</li>
+        <li><code>0 to 15%</code> reads mapped to mitochondrial genes per cell</li>
+        </p>'''.format(measures.shape[0], len(self.data.var_names)))
 
         display(header, fig1_out)
 
@@ -612,7 +622,7 @@ class SingleCellAnalysis:
         if normalization_method == 'LogNormalize' and self.data.is_log is False:
             data_raw = sc.pp.log1p(self.data, copy=True)
 
-        self.data.raw = self.data
+        self.data.raw = data_raw
 
         # Per-cell scaling.
         sc.pp.normalize_per_cell(self.data, counts_per_cell_after=1e4)
@@ -639,23 +649,25 @@ class SingleCellAnalysis:
         return True
 
     def _preprocess_counts_ui(self, orig_n_cells, orig_n_genes):
-        cell_text = '<p><code>{}/{}</code> cells passed filtering.</p>'.format(
+        cell_text = '<p>Number of cells passed filtering: <code>{} / {}</code></p>'.format(
             len(self.data.obs_names), orig_n_cells)
-        genes_text = '<p><code>{}/{}</code> genes passed filtering.</p>'.format(
+        genes_text = '<p>Number of genes passed filtering: <code>{} / {}</code></p>'.format(
             len(self.data.raw.var_names), orig_n_genes)
-        v_genes_text = '<p><code>{}/{}</code> genes detected as variable genes.</p>'.format(
+        v_genes_text = '<p>Number of genes detected as variable genes: <code>{} / {}</code></p>'.format(
             len(self.data.var_names), len(self.data.raw.var_names))
         if self.data.is_log:
             log_text = '<p>Data is log normalized.</p>'
         else:
             log_text = '<p>Data is not normalized.</p>'
-        regress_text = '''<p>Perform linear regression to remove unwanted sources of variation including:</p><ol><li># of detected molecules per cell</li>
-            <li>% mitochondrial gene content</li></ol>'''
+        regress_text = '''<p>Performed linear regression to remove unwanted sources of variation including:<br>
+                          <ol><li># of detected molecules per cell</li>
+                              <li>% mitochondrial gene content</li>
+                          </ol></p>'''
         pca_help_text = '''<h3>Dimensional Reduction: Principal Components</h3>
         <p>Use the following plot showing the standard deviations of the principal components to determine the number of relevant components to use downstream.</p>'''
 
         output_div = _output_message(
-            '''<h3 style="position: relative; top: -10px">Results</h3>{}{}{}{}{}{}'''.
+            '''<h3 style="position: relative; top: -10px">Preprocess Counts Results</h3>{}{}{}{}{}{}'''.
             format(cell_text, genes_text, v_genes_text, log_text, regress_text,
                    pca_help_text))
         display(output_div)
@@ -675,29 +687,33 @@ class SingleCellAnalysis:
 
     def _plot_pca(self):
         # mpl figure
-        fig_elbow_plot = plt.figure(figsize=(6, 5))
-        pc_std = self.data.obsm['X_pca'].std(axis=0).tolist()
-        pc_std = pd.Series(
-            pc_std, index=[x + 1 for x in list(range(len(pc_std)))])
-        pc_std = pc_std.iloc[:min(len(pc_std), 30)]
-        plt.plot(pc_std, 'o')
+        fig_elbow_plot = plt.figure(figsize=(7, 6))
+        pc_var = self.data.uns['pca_variance_ratio']
+        pc_var = pc_var[:min(len(pc_var), 30)]
+
+        # Calculate percent variance explained
+        pc_var = [v / sum(pc_var) * 100 for v in pc_var]
+
+        pc_var = pd.Series(pc_var, index=[x + 1 for x in range(len(pc_var))])
+
+        plt.plot(pc_var, 'o')
         ax = fig_elbow_plot.gca()
         ax.set_xlim(left=0)
         ax.get_xaxis().set_major_locator(MaxNLocator(integer=True))
         ax.get_xaxis().set_minor_locator(MaxNLocator(integer=True))
         ax.set_xlabel('Principal Component', size=16)
-        ax.set_ylabel('Variance of PC', size=16)
+        ax.set_ylabel('% Variance Explained', size=16)
         plt.close()
 
         # plot interactive
         py_fig = tls.mpl_to_plotly(fig_elbow_plot)
-        py_fig['layout']['margin'] = {'l': 80, 'r': 14, 't': 10, 'b': 45}
+        py_fig['layout']['margin'] = {'l': 75, 'r': 14, 't': 10, 'b': 45}
 
         return fig_elbow_plot, py_fig
 
     # -------------------- Cluster Cells --------------------
 
-    def cluster_cells(self, pcs=10, resolution=1.2, perplexity=30):
+    def cluster_cells(self):
         # Hide FutureWarnings.
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
@@ -712,6 +728,11 @@ class SingleCellAnalysis:
             float('{:0.1f}'.format(x)) for x in list(np.arange(.5, 2.1, 0.1))
         ]
         perp_range = range(5, min(51, len(self.data.obs_names)))
+
+        # Default parameter values
+        pcs = 10
+        resolution = 1.2
+        perplexity = 30
 
         # Parameter slider widgets
         pc_slider = SelectionSlider(
@@ -751,11 +772,11 @@ class SingleCellAnalysis:
                 # perform tSNE calculation and plot
                 self._run_tsne(pc_slider.value, res_slider.value,
                                perp_slider.value)
-                tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(10, 8))
+                tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(10, 9))
 
                 display(
                     _create_export_button(
-                        tsne_fig, '3_perform_clustering_analysis_tsne_plot'))
+                        tsne_fig, '3_cluster_cells_tsne_plot'))
                 py.iplot(py_tsne_fig, show_link=False)
 
                 # close progress bar
@@ -769,7 +790,11 @@ class SingleCellAnalysis:
         param_info = _output_message('''
             <h3 style="position: relative; top: -10px">Clustering Parameters</h3>
             <p>
-            <h4>Number of PCs (Principal Components)</h4>The number of principal components to use in clustering.<br><br>
+            <h4>Number of PCs (Principal Components)</h4>The number of principal components (PCs) to use in clustering.
+            It is important to note that the fewer PCs we choose to use, the less noise we have when clustering,
+            but at the risk of excluding relevant biological variance. Look at the plot in <b>Step 2</b> showing the
+            percent varianced explained bye each principle components and choose a cutoff where there is a clear elbow
+            in the graph.<br><br>
             <h4>Resolution</h4>Higher resolution means more and smaller clusters. We find that values 0.6-1.2 typically
             returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for
             larger datasets.<br><br>
@@ -803,6 +828,8 @@ class SingleCellAnalysis:
             n_neighbors=10,
             resolution=resolution,
             recompute_graph=True)
+
+        self.data.obs['louvain_groups']
 
     def _plot_tsne(self, figsize):
         # Clusters
@@ -1024,7 +1051,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         tsne_markers_fig,
-                        '3_perform_clustering_analysis_marker_tsne_plot'))
+                        '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
 
             marker_plot_tab_2_output.clear_output()
@@ -1037,7 +1064,7 @@ class SingleCellAnalysis:
 
                 display(
                     _create_export_button(
-                        tsne_fig, '3_perform_clustering_analysis_tsne_plot'))
+                        tsne_fig, '4_visualize_analysis_tsne_plot'))
                 py.iplot(tsne_py_fig, show_link=False)
 
                 # Hide progress bar
@@ -1050,7 +1077,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         marker_violin_plot,
-                        '3_perform_clustering_analysis_marker_violin_plot'))
+                        '4_visualize_marker_violin_plot'))
                 display(
                     HTML('<h3>{} Expression Across Clusters</h3>'.format(
                         title)))
@@ -1092,7 +1119,7 @@ class SingleCellAnalysis:
                 display(
                     _create_export_button(
                         fig,
-                        '3_perform_clustering_analysis_top_markers_heatmap_plot'
+                        '4_visualize_top_markers_heatmap_plot'
                     ))
 
                 display(fig)
@@ -1130,13 +1157,15 @@ class SingleCellAnalysis:
             <p style="font-size:14px; line-height:{};">
             <ul style="list-style-position: inside; padding-left: 0; font-size:14px; line-height:{};">
             <li><code>Gene</code>: the gene name<br></li>
-            <li><code>adj p-value</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
-            <li><code>avg logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
-            <li><code>pct.#</code>: # of cells in the first group that express the gene<br></li>
-            <li><code>pct.#</code>: # of cells in the second group that express the gene<br></li>
+            <li><code>adj.pval</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
+            <li><code>logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the first group that express the gene<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the second group that express the gene<br></li>
             </ul>
             <hr>
             '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
+
+        cluster_param_header = HTML('<h4>Compare Clusters</h4>')
 
         def update_cluster_table(b=None):
             ident_1 = param_c_1.value
@@ -1171,10 +1200,10 @@ class SingleCellAnalysis:
         cluster_table_button.on_click(update_cluster_table)
 
         cluster_table_header_box.children = [
-            _info_message('Click the header to hide/show the sidebar.'),
+            _info_message('Hide/show this panel by clicking the <b>Explore Markers</b> header above.'),
             cluster_table_header, cluster_table_note, _info_message(
                 'Export the table using the menu, which can be accessed in the top left hand corner of the "Gene" column.'
-            ), cluster_param_box, param_test, cluster_table_button
+            ), cluster_param_header, cluster_param_box, param_test, cluster_table_button
         ]
 
         # ------------------------- Main Table -------------------------
@@ -1306,11 +1335,15 @@ class SingleCellAnalysis:
         pct_2 = ['%.2f' % e for e in pct_2]
 
         # Return as interactive table
+        if ident_2 == 'rest':
+            pct_expr_2_prefix = '%.expr.'
+        else:
+            pct_expr_2_prefix = '%.expr.c'
         results = pd.DataFrame(
             [marker_names, marker_scores, log_fc, pct_1, pct_2],
             index=[
-                'Gene', 'adj p-value', 'avg logFC', 'pct.{}'.format(ident_1),
-                'pct.{}'.format(ident_2)
+                'Gene', 'adj.pval', 'logFC', '%.expr.c{}'.format(ident_1),
+                '{}{}'.format(pct_expr_2_prefix, ident_2)
             ]).T
         results.set_index(['Gene'], inplace=True)
         table = TableDisplay(results)
@@ -1392,10 +1425,12 @@ class SingleCellAnalysis:
             zip(
                 np.unique(group_labels),
                 sns.color_palette(_CLUSTERS_CMAP, n_colors=num_clusters)))
+        cmap_binary = {0:'grey', 1:'lightgrey'}
         cell_colors = pd.Series(group_labels, index=counts.columns).map(cmap)
         gene_labels = np.array([[c] * num_markers
                                 for c in cluster_names]).flatten()
-        gene_colors = pd.Series(gene_labels).map(cmap).tolist()
+        gene_labels = [label % 2 for label in gene_labels]
+        gene_colors = pd.Series(gene_labels).map(cmap_binary).tolist()
 
         dim = 12 * num_markers / 10
         # Heatmap
@@ -1421,6 +1456,13 @@ class SingleCellAnalysis:
         hm = g.ax_heatmap
         hm.set_yticklabels(counts.index, {'fontsize': '9'})
         hm.set_yticks([x + 0.5 for x in range(len(counts.index))])
+
+        hm.set_xlabel("Cells")
+        hm.xaxis.set_label_coords(0.5,1.1)
+
+        hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers))
+        hm.yaxis.set_label_coords(-0.1,0.5)
+
 
         plt.close()
         return g.fig
