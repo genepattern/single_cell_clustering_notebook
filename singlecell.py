@@ -1457,7 +1457,7 @@ class SingleCellAnalysis:
             zip(
                 np.unique(group_labels),
                 sns.color_palette(_CLUSTERS_CMAP, n_colors=num_clusters)))
-        cmap_binary = {0:'grey', 1:'lightgrey'}
+        cmap_binary = {0: 'grey', 1: 'lightgrey'}
         cell_colors = pd.Series(group_labels, index=counts.columns).map(cmap)
         gene_labels = np.array([[c] * num_markers
                                 for c in cluster_names]).flatten()
@@ -1490,11 +1490,10 @@ class SingleCellAnalysis:
         hm.set_yticks([x + 0.5 for x in range(len(counts.index))])
 
         hm.set_xlabel("Cells")
-        hm.xaxis.set_label_coords(0.5,1.1)
+        hm.xaxis.set_label_coords(0.5, 1.1)
 
         hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers))
-        hm.yaxis.set_label_coords(-0.1,0.5)
-
+        hm.yaxis.set_label_coords(-0.1, 0.5)
 
         plt.close()
         return g.fig
