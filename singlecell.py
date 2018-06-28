@@ -3,6 +3,7 @@ import warnings
 from copy import deepcopy
 
 import matplotlib as mpl
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,9 +11,10 @@ import requests
 import scipy.stats as st
 import seaborn as sns
 from IPython.display import display
-from ipywidgets import (HTML, Accordion, Button, Dropdown, FloatProgress, HBox,
-                        IntSlider, Layout, Output, SelectionSlider, Tab, Text,
-                        VBox)
+from ipywidgets import (HTML, Accordion, Button, Dropdown, FloatProgress,
+                        FloatRangeSlider, HBox, IntRangeSlider, IntSlider,
+                        Layout, Output, SelectionSlider, Tab, Text, VBox,
+                        interactive_output)
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
@@ -452,42 +454,6 @@ class SingleCellAnalysis:
             self.data.obs['n_genes'], self.data.obs['n_counts'],
             self.data.obs['percent_mito'] * 100
         ]).T
-        measure_names = ['# of Genes', 'Total Counts', '% Mitochondrial Genes']
-
-        # Pairplot of each variable
-        with sns.axes_style("whitegrid", {
-                'axes.edgecolor': 'black',
-                'grid.color': '0.9',
-                'xtick.color': 'black',
-                'ytick.color': 'black',
-                'xtick.direction': 'out',
-                'ytick.direction': 'out',
-                'xtick.major.size': '5',
-                'ytick.major.size': '5'
-        }):
-            g = sns.pairplot(
-                measures,
-                size=4,
-                diag_kind='kde',
-                plot_kws=dict(s=2, edgecolor="#1976D2", linewidth=0.5),
-                diag_kws=dict(shade=True, color='#1976D2'))
-
-        # Set limits to 0
-        for row in g.axes:
-            for ax in row:
-                ax.set_ylim(
-                    0, )
-                ax.set_xlim(
-                    0, )
-
-        # Set axes labels
-        xlabels, ylabels = [], []
-        for ax in g.axes[-1, :]:
-            xlabel = ax.xaxis.get_label_text()
-            xlabels.append(xlabel)
-        for ax in g.axes[:, 0]:
-            ylabel = ax.yaxis.get_label_text()
-            ylabels.append(ylabel)
 
         measure_names = {
             'n_genes': '# of Genes',
@@ -495,27 +461,96 @@ class SingleCellAnalysis:
             'percent_mito': '% Mitochondrial Genes'
         }
 
-        for j in range(len(xlabels)):
-            g.axes[len(xlabels) - 1, j].xaxis.set_label_text(measure_names[xlabels[j]])
+        def plot_fig1(a, b, c):
+            with sns.axes_style('ticks'):
+                fig1 = plt.figure(figsize=(14, 4))
+                gs = mpl.gridspec.GridSpec(2, 3, wspace=0.1, hspace=0.05, height_ratios=[20, 1])
 
-        for i in range(len(ylabels)):
-            g.axes[i, 0].yaxis.set_label_text(measure_names[ylabels[i]])
+                selected_info = HBox(layout=Layout(width='812px', margin='0 0 0 10px'))
+                selected_info_children = []
+                is_selected = [True] * measures.shape[0]
 
-        fig1 = g.fig
-        plt.close()
+                for measure, ax_col, color, w in zip(measures.columns, list(range(len(measures.columns))), sns.color_palette('Set1')[:3], [a, b, c]):
+                    values = measures[measure]
+                    # Draw density plots
+                    ax = plt.subplot(gs[0, ax_col])
+                    sns.kdeplot(values, shade=True, ax=ax, color=color, legend=False)
+                    ax.set_xlim(0)
+                    plt.setp(ax.get_xticklabels(), visible=False)
+                    plt.setp(ax.get_yticklabels(), visible=False)
+                    plt.setp(ax.get_yticklines(), visible=False)
+                    ax.set_xlabel('')
+                    sns.despine(ax=ax)
 
-        fig1_out = Output()
-        with fig1_out:
+                    # Draw mean
+                    ax.plot(len(ax.get_ylim()) * [values.mean()], ax.get_ylim(), color=color)
+                    ax.text(values.mean(), ax.get_ylim()[1], 'x̅ = {:.2f}'.format(values.mean()), fontsize=13)
+
+                    # Draw SD lines
+                    for i in range(3, 5):
+                        ax.plot(len(ax.get_ylim()) * [values.mean() + i * values.std()],
+                                ax.get_ylim(), linestyle=':', color=color)
+                        ax.text(values.mean() + i * values.std(), ax.get_ylim()
+                                [1] * (1 - 0.08 * (i - 2)), 'x̅ + {}σ = {:.2f}'.format(i, values.mean() + i * values.std()), fontsize=13)
+
+                    # Draw selected area
+                    selected_area = patches.Rectangle((w[0], 0), w[1], len(ax.get_ylim()),
+                                                      linewidth=0, facecolor='black', alpha=0.1)
+                    ax.add_patch(selected_area)
+
+                    # Calculate # of cells selected using all filters
+                    is_selected = is_selected & (measures[measure] >= w[0]) & (measures[measure] <= w[1])
+
+                    # Draw points on bottom
+                    ax_1 = plt.subplot(gs[1, ax_col], sharex=ax)
+                    sns.stripplot(values, ax=ax_1, color=color, orient='horizontal', size=3, jitter=True, alpha=0.3)
+                    ax_1.set_xlim(0)
+                    ax_1.set_xlabel(measure_names[ax_1.get_xlabel()])
+                    plt.setp(ax_1.get_xticklines(), visible=False)
+                    plt.setp(ax_1.get_yticklines(), visible=False)
+                    sns.despine(ax=ax_1, left=True, bottom=True)
+
+                    # Update selected info
+                    w_info = HTML(value='<code>{:.2f} - {:.2f}</code>'.format(w[0], w[1]),
+                                  layout=Layout(width='270px', padding='0', margin='0 20px 0 0'))
+                    selected_info_children.append(w_info)
+
+            plt.close()
+            selected_info.children = selected_info_children
+            is_selected_info = HTML('<code><b>{:.2f}%</b></code> of total cells selected.'.format(sum(is_selected) /
+                                                                                                  len(is_selected) * 100), layout=Layout(margin='0 0 0 10px'))
             display(
                 _create_export_button(fig1,
-                                      '1_setup_analysis_single_qc_plots'))
-            display(fig1)
+                                      '1_setup_analysis_single_qc_plots'), is_selected_info, fig1, selected_info)
+
+        slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 10px'))
+        slider_box_children = []
+        for measure in measures:
+            values = measures[measure]
+            slider = FloatRangeSlider(value=[0, values.mean() + 3 * values.std()],
+                                      min=0,
+                                      max=values.max(),
+                                      step=0.01,
+                                      continuous_update=False,
+                                      readout=False,
+                                      layout=Layout(margin='0 20px 0 0'))
+            slider_box_children.append(slider)
+
+        slider_box.children = slider_box_children
+
+        slider_box_children.append(slider)
+        fig1_out = Output()
+        with fig1_out:
+            interactive_fig1 = interactive_output(plot_fig1, dict(zip(['a', 'b', 'c'], slider_box.children)))
+            interactive_fig1.layout.height = '400px'
+            display(interactive_fig1, slider_box)
 
         # Descriptive text
         header = _output_message('''<h3>Results</h3>
         <p>Loaded <code>{}</code> cells and <code>{}</code> total genes.</p>
         <h3>QC Metrics</h3>
-        <p>Use the displayed quality metrics to visually identify outliers cells and filter unwanted cells in
+        <p>Visually inspect the quality metric distributions to visually identify thresholds for
+        filtering unwanted cell. Filtering is performed in
         <b>Step 2</b>.<br><br>
         There are 3 metrics including:
         <ol>
@@ -527,11 +562,8 @@ class SingleCellAnalysis:
         losing cytoplasmic RNA and retaining RNA enclosed in the mitochondria. An abnormally high number of genes
         or counts in a cell suggests a higher probability of a doublet.
         <br><br>
-        Some sensible ranges for the example dataset are:
-        <ol>
-        <li><code>0 to 2500</code> # of genes per cell</li>
-        <li><code>0 to 15000</code> total read counts per cell</li>
-        <li><code>0 to 15%</code> reads mapped to mitochondrial genes per cell</li>
+        A standard upper threshold for removing outliers is roughly <i>3-4 standard deviations</i> above the mean.
+        Inspect the quality metric distribution plots below to filter appropriately.
         </p>'''.format(measures.shape[0], len(self.data.var_names)))
 
         display(header, fig1_out)
