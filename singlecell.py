@@ -517,8 +517,8 @@ class SingleCellAnalysis:
 
             plt.close()
             selected_info.children = selected_info_children
-            is_selected_info = HTML('<code><b>{:.2f}%</b></code> of total cells selected.'.format(sum(is_selected) /
-                                                                                                  len(is_selected) * 100), layout=Layout(margin='0 0 0 10px'))
+            is_selected_info = HTML('<code><b>{:.2f}% ({} / {})</b></code> of total cells selected.'.format(sum(is_selected) /
+                                                                                                            len(is_selected) * 100, sum(is_selected), len(is_selected)), layout=Layout(margin='0 0 0 10px'))
             display(
                 _create_export_button(fig1,
                                       '1_setup_analysis_single_qc_plots'), is_selected_info, fig1, selected_info)
@@ -785,7 +785,7 @@ class SingleCellAnalysis:
 
         # Output widget
         plot_output = Output(layout=Layout(
-            height='700px',
+            height='800px',
             display='flex',
             align_items='center',
             justify_content='center'))
