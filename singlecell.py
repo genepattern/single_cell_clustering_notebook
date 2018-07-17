@@ -785,7 +785,7 @@ class SingleCellAnalysis:
 
         # Output widget
         plot_output = Output(layout=Layout(
-            height='700px',
+            height='800px',
             display='flex',
             align_items='center',
             justify_content='center'))
