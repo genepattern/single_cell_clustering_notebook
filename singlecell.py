@@ -364,6 +364,8 @@ def _download_text_file(url):
     r = requests.get(url, stream=True)
     file_size = int(r.headers['Content-Length'])
     chunk_size = int(file_size / 50)
+    if chunk_size == 0:
+        chunk_size = int(file_size)
 
     progress_bar = FloatProgress(
         value=0,
