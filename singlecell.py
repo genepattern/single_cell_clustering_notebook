@@ -18,6 +18,7 @@ from ipywidgets import (HTML, Accordion, Button, Dropdown, FloatProgress,
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
+import subprocess
 
 import plotly.offline as py
 import plotly.tools as tls
@@ -435,8 +436,14 @@ class SingleCellAnalysis:
 
         if use_csv:
             local_csv_filepath = csv_filepath
+
             if csv_filepath.startswith('http'):
                 local_csv_filepath = _download_text_file(csv_filepath)
+
+            if csv_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+csv_filepath, shell=True)
+                csv_filepath = '.'.join(csv_filepath.split('.')[:-1])
+
             data = sc.read(local_csv_filepath, cache=False).transpose()
 
         elif use_10x:
@@ -450,6 +457,17 @@ class SingleCellAnalysis:
                 local_gene_filepath = _download_text_file(gene_filepath)
             if bc_filepath.startswith('http'):
                 local_bc_filepath = _download_text_file(bc_filepath)
+
+            if local_mtx_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_mtx_filepath, shell=True)
+                local_mtx_filepath = '.'.join(local_mtx_filepath.split('.')[:-1])
+            if local_gene_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_gene_filepath, shell=True)
+                local_gene_filepath = '.'.join(local_gene_filepath.split('.')[:-1])
+            if local_bc_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_bc_filepath, shell=True)
+                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1]) 
+
             data = sc.read(local_mtx_filepath, cache=False).transpose()
             data.obs_names = np.genfromtxt(local_bc_filepath, dtype=str)
             data.var_names = np.genfromtxt(local_gene_filepath, dtype=str)[:,1]

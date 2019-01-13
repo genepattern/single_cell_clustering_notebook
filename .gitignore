@@ -2,6 +2,9 @@
 matrix.mtx
 genes.tsv
 barcodes.tsv
+matrix.mtx.zip
+genes.tsv.zip
+barcodes.tsv.zip
 matrix.small.txt
 write/
 data/matrix.txt
