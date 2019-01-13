@@ -6,6 +6,9 @@ matrix.mtx.zip
 genes.tsv.zip
 barcodes.tsv.zip
 matrix.small.txt
+data/pancreas_mouse.expressionMatrix.txt
+pancreas_mouse.expressionMatrix.txt
+pancreas_mouse.expressionMatrix.txt.zip
 write/
 data/matrix.txt
 data/analysis/

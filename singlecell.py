@@ -437,12 +437,12 @@ class SingleCellAnalysis:
         if use_csv:
             local_csv_filepath = csv_filepath
 
-            if csv_filepath.startswith('http'):
+            if local_csv_filepath.startswith('http'):
                 local_csv_filepath = _download_text_file(csv_filepath)
 
-            if csv_filepath.endswith('.zip'):
-                subprocess.call('unzip -o '+csv_filepath, shell=True)
-                csv_filepath = '.'.join(csv_filepath.split('.')[:-1])
+            if local_csv_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_csv_filepath, shell=True)
+                local_csv_filepath = '.'.join(local_csv_filepath.split('.')[:-1])
 
             data = sc.read(local_csv_filepath, cache=False).transpose()
 
