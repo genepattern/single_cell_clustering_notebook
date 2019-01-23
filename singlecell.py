@@ -18,6 +18,7 @@ from ipywidgets import (HTML, Accordion, Button, Dropdown, FloatProgress,
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 from statsmodels.sandbox.stats.multicomp import multipletests
+import subprocess
 
 import plotly.offline as py
 import plotly.tools as tls
@@ -397,7 +398,7 @@ class SingleCellAnalysis:
         mpl.rcParams['figure.dpi'] = 80
 
     # -------------------- SETUP ANALYSIS --------------------
-    def setup_analysis(self, csv_filepath=None, mtx_filepath=None, 
+    def setup_analysis(self, csv_filepath=None, gene_x_cell=True, mtx_filepath=None, 
                         gene_filepath=None, bc_filepath=None):
         '''
         Load a raw count matrix for a single-cell RNA-seq experiment.
@@ -411,7 +412,8 @@ class SingleCellAnalysis:
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
 
-        if not self._setup_analysis(csv_filepath, mtx_filepath, gene_filepath, bc_filepath):
+        if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath, 
+                                    gene_filepath, bc_filepath):
             return
         self._setup_analysis_ui()
 
@@ -419,8 +421,8 @@ class SingleCellAnalysis:
         warnings.simplefilter('default',
                               FutureWarning) if self.verbose else None
 
-    def _setup_analysis(self, csv_filepath, mtx_filepath, gene_filepath,
-                        bc_filepath):
+    def _setup_analysis(self, csv_filepath, gene_x_cell, mtx_filepath, gene_filepath,
+                        bc_filepath,):
         # Check for either one matrix file or all populated 10x fields, make
         # sure user did not choose both or neither
         paths_10x = [mtx_filepath, gene_filepath, bc_filepath]
@@ -435,9 +437,17 @@ class SingleCellAnalysis:
 
         if use_csv:
             local_csv_filepath = csv_filepath
-            if csv_filepath.startswith('http'):
+
+            if local_csv_filepath.startswith('http'):
                 local_csv_filepath = _download_text_file(csv_filepath)
-            data = sc.read(local_csv_filepath, cache=False).transpose()
+
+            if local_csv_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_csv_filepath, shell=True)
+                local_csv_filepath = '.'.join(local_csv_filepath.split('.')[:-1])
+
+            data = sc.read(local_csv_filepath, cache=False)
+            if gene_x_cell:
+                data = data.transpose()
 
         elif use_10x:
             local_mtx_filepath = mtx_filepath
@@ -450,6 +460,17 @@ class SingleCellAnalysis:
                 local_gene_filepath = _download_text_file(gene_filepath)
             if bc_filepath.startswith('http'):
                 local_bc_filepath = _download_text_file(bc_filepath)
+
+            if local_mtx_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_mtx_filepath, shell=True)
+                local_mtx_filepath = '.'.join(local_mtx_filepath.split('.')[:-1])
+            if local_gene_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_gene_filepath, shell=True)
+                local_gene_filepath = '.'.join(local_gene_filepath.split('.')[:-1])
+            if local_bc_filepath.endswith('.zip'):
+                subprocess.call('unzip -o '+local_bc_filepath, shell=True)
+                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1]) 
+
             data = sc.read(local_mtx_filepath, cache=False).transpose()
             data.obs_names = np.genfromtxt(local_bc_filepath, dtype=str)
             data.var_names = np.genfromtxt(local_gene_filepath, dtype=str)[:,1]
