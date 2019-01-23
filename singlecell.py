@@ -299,6 +299,8 @@ def _output_message(message):
         '<div class="well well-sm" style="font-size:14px; line-height:20px; padding: 15px;">{}</div>'.
         format(message))
 
+def _output_message_txt(message):
+    return '<div class="well well-sm" style="font-size:14px; line-height:20px; padding: 15px;">{}</div>'.format(message)
 
 def _warning_message(message):
     return HTML(
@@ -309,6 +311,17 @@ def _error_message(message):
     return HTML(
         '<div class="alert alert-danger" style="font-size:14px; line-height:20px;">{}</div>'.
         format(message))
+
+"""
+These functions generate and update HTML objects to
+display notebook progress status
+"""
+
+def _get_new_status(message):
+    return _output_message('<h3>Progress: </h3>'+message)
+
+def _update_status(stat, message):
+    stat.value = _output_message_txt('<h3>Progress: </h3>'+message)
 
 def _create_export_button(figure, fname):
     # Default png
@@ -385,7 +398,7 @@ def _download_text_file(url):
 
     f.close()
     progress_bar.close()
-    display(HTML('<p>Downloaded file: <code>{}</code>.</p>'.format(filename)))
+    #display(HTML('<p>Downloaded file: <code>{}</code>.</p>'.format(filename)))
 
     return filename
 
@@ -412,17 +425,25 @@ class SingleCellAnalysis:
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
 
+        stat = _get_new_status("Preparing your files...")
+        display(stat)
+
         if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath, 
-                                    gene_filepath, bc_filepath):
+                                    gene_filepath, bc_filepath, stat):
             return
+
+        _update_status(stat, "Building QC metric plots...")
+
         self._setup_analysis_ui()
+
+        _update_status(stat, "Done! QC for your data is displayed below")
 
         # Revert to default settings to show FutureWarnings.
         warnings.simplefilter('default',
                               FutureWarning) if self.verbose else None
 
     def _setup_analysis(self, csv_filepath, gene_x_cell, mtx_filepath, gene_filepath,
-                        bc_filepath,):
+                        bc_filepath, stat):
         # Check for either one matrix file or all populated 10x fields, make
         # sure user did not choose both or neither
         paths_10x = [mtx_filepath, gene_filepath, bc_filepath]
@@ -439,6 +460,8 @@ class SingleCellAnalysis:
             local_csv_filepath = csv_filepath
 
             if local_csv_filepath.startswith('http'):
+                _update_status(stat, "Downloading "+local_csv_filepath+"...")
+                display(stat)
                 local_csv_filepath = _download_text_file(csv_filepath)
 
             if local_csv_filepath.endswith('.zip'):
@@ -455,30 +478,46 @@ class SingleCellAnalysis:
             local_bc_filepath = bc_filepath
 
             if mtx_filepath.startswith('http'):
+                _update_status(stat, "Downloading "+mtx_filepath+"...")
                 local_mtx_filepath = _download_text_file(mtx_filepath)
+
             if gene_filepath.startswith('http'):
+                _update_status(stat, "Downloading "+gene_filepath+"...")
                 local_gene_filepath = _download_text_file(gene_filepath)
+
             if bc_filepath.startswith('http'):
+                _update_status(stat, "Downloading "+bc_filepath+"...")
                 local_bc_filepath = _download_text_file(bc_filepath)
 
             if local_mtx_filepath.endswith('.zip'):
+                _update_status(stat, "Unpacking "+local_mtx_filepath+"...")
                 subprocess.call('unzip -o '+local_mtx_filepath, shell=True)
                 local_mtx_filepath = '.'.join(local_mtx_filepath.split('.')[:-1])
+
             if local_gene_filepath.endswith('.zip'):
+                _update_status(stat, "Unpacking "+local_gene_filepath+"...")
                 subprocess.call('unzip -o '+local_gene_filepath, shell=True)
                 local_gene_filepath = '.'.join(local_gene_filepath.split('.')[:-1])
+
             if local_bc_filepath.endswith('.zip'):
+                _update_status(stat, "Unpacking "+local_bc_filepath+"...")
                 subprocess.call('unzip -o '+local_bc_filepath, shell=True)
                 local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1]) 
 
+            _update_status(stat, "Loading "+local_mtx_filepath+"...")
             data = sc.read(local_mtx_filepath, cache=False).transpose()
+
+            _update_status(stat, "Loading "+local_bc_filepath+"...")
             data.obs_names = np.genfromtxt(local_bc_filepath, dtype=str)
+
+            _update_status(stat, "Loading "+local_gene_filepath+"...")
             data.var_names = np.genfromtxt(local_gene_filepath, dtype=str)[:,1]
 
         # This is needed to setup the "n_genes" column in data.obs.
         sc.pp.filter_cells(data, min_genes=0)
 
         # Plot some information about mitochondrial genes, important for quality control
+        _update_status(stat, "Calculating mitochondrial DNA QC metrics...")
         mito_genes = [
             name for name in data.var_names if name.startswith('MT-')
         ]
@@ -487,6 +526,7 @@ class SingleCellAnalysis:
                 data.X, axis=1)
 
         # add the total counts per cell as observations-annotation to data
+        _update_status(stat, "Calculating gene counts QC metrics...")
         data.obs['n_counts'] = np.sum(data.X, axis=1)
         data.is_log = False
         self.data = data
@@ -626,6 +666,9 @@ class SingleCellAnalysis:
         Perform cell quality control by evaluating quality metrics, normalizing counts, scaling, and correcting for effects of total counts per cell and the percentage of mitochondrial genes expressed. Also detect highly variable genes and perform linear dimensional reduction (PCA).
         '''
         # Hide FutureWarnings.
+        stat = _get_new_status("Preparing to preprocess data...")
+        display(stat)
+
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
 
@@ -656,24 +699,28 @@ class SingleCellAnalysis:
         # Perform filtering on genes and cells
         success_run = self._preprocess_counts(
             min_n_cells, n_genes_range, n_counts_range, percent_mito_range,
-            normalization_method)
+            normalization_method, stat)
 
         # Build UI output
         if success_run:
+            _update_status(stat, "Preparing preprocessing results visualizations...")
             self._preprocess_counts_ui(orig_n_cells, orig_n_genes)
+            _update_status(stat, "Done! See the results of preprocessing below")
 
         # Revert to default settings to show FutureWarnings.
         warnings.simplefilter('default',
                               FutureWarning) if self.verbose else None
 
     def _preprocess_counts(self, min_n_cells, n_genes_range, n_counts_range,
-                           percent_mito_range, normalization_method):
+                           percent_mito_range, normalization_method, stat):
         if self.data.raw:
             display(
                 _warning_message(
                     'This data has already been preprocessed. Please run <a href="#Step-1:-Setup-Analysis">Step 1: Setup Analysis</a> again if you would like to perform preprocessing again.</div>'
                 ))
             return False
+
+        _update_status(stat, "Filtering cells by #genes and #counts...")
 
         # Gene filtering
         sc.pp.filter_genes(self.data, min_cells=min_n_cells)
@@ -685,6 +732,7 @@ class SingleCellAnalysis:
         sc.pp.filter_cells(self.data, max_counts=n_counts_range[1])
 
         # Remove cells that have too many mitochondrial genes expressed.
+        _update_status(stat, "Removing cells high in mitochondrial genes...")
         percent_mito_filter = (
             self.data.obs['percent_mito'] * 100 >= percent_mito_range[0]) & (
                 self.data.obs['percent_mito'] * 100 < percent_mito_range[1])
@@ -700,24 +748,30 @@ class SingleCellAnalysis:
         self.data.raw = data_raw
 
         # Per-cell scaling.
+        _update_status(stat, "Performing per-cell normalization...")
         sc.pp.normalize_per_cell(self.data, counts_per_cell_after=1e4)
 
         # Identify highly-variable genes.
+        _update_status(stat, "Identifying highly-variable genes...")
         sc.pp.filter_genes_dispersion(
             self.data, min_mean=0.0125, max_mean=3, min_disp=0.5)
 
         # Logarithmize the data.
         if normalization_method == 'LogNormalize' and self.data.is_log is False:
+            _update_status(stat, "Log-normalizing data...")
             sc.pp.log1p(self.data)
             self.data.is_log = True
 
         # Regress out effects of total counts per cell and the percentage of mitochondrial genes expressed.
+        _update_status(stat, "Performing regression based on counts per cell and percent mitochondrial genes expressed...")
         sc.pp.regress_out(self.data, ['n_counts', 'percent_mito'])
 
         # Scale the data to unit variance and zero mean. Clips to max of 10.
+        _update_status(stat, "Scaling data to have unit variance and zero mean...")
         sc.pp.scale(self.data, max_value=10)
 
         # Calculate PCA
+        _update_status(stat, "Performing principle component analysis (PCA)...")
         sc.tl.pca(self.data, n_comps=30)
 
         # Successfully ran
@@ -1545,6 +1599,8 @@ class SingleCellAnalysis:
 
     def export_data(self, path, h5ad=False):
         # Hide "omitting to write sparse annotation message" from scanpy.
+        stat = _get_new_status("Preparing to export your data...")
+        display(stat)
         warnings.simplefilter('ignore', UserWarning)
         if h5ad:
             # Assume same directory if simple filename
@@ -1554,21 +1610,25 @@ class SingleCellAnalysis:
             # Append .h5ad suffix
             if not path.endswith('.h5ad'):
                 path = path + '.h5ad'
+            _update_status(stat, "Writing data to disk...")
             self.data.write(path)
 
             path_message = '<code>{}</code> in .h5ad format.'.format(path)
         else:
             # Export AnnData object as series of csv files.
+            _update_status(stat, "Writing data to disk...")
             self.data.write_csvs(path, skip_data=False)
             path_message = 'the <a href="{}" target="_blank">{}</a> folder as <code>.csv</code> files.'.format(
                 path, path)
 
+        _update_status(stat, "Done! Exported data to {}".format(path_message))
+
         # User feedback
-        display(
-            _output_message('''
-            <h3 style="position: relative; top: -10px">Results</h3>
-            <p style="font-size:14px; line-height:20px;">Exported data to {}</p>
-            </div>'''.format(path_message)))
+        #display(
+        #    _output_message('''
+        #    <h3 style="position: relative; top: -10px">Results</h3>
+        #    <p style="font-size:14px; line-height:20px;">Exported data to {}</p>
+        #    </div>'''.format(path_message)))
 
         # Turn user warnings back on.
         warnings.simplefilter('default', UserWarning)
