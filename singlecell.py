@@ -304,6 +304,10 @@ def _warning_message(message):
         '<div class="alert alert-warning" style="font-size:14px; line-height:20px;">{}</div>'.
         format(message))
 
+def _error_message(message):
+    return HTML(
+        '<div class="alert alert-danger" style="font-size:14px; line-height:20px;">{}</div>'.
+        format(message))
 
 def _create_export_button(figure, fname):
     # Default png
@@ -360,6 +364,8 @@ def _download_text_file(url):
     r = requests.get(url, stream=True)
     file_size = int(r.headers['Content-Length'])
     chunk_size = int(file_size / 50)
+    if chunk_size == 0:
+        chunk_size = int(file_size)
 
     progress_bar = FloatProgress(
         value=0,
@@ -382,7 +388,6 @@ def _download_text_file(url):
 
     return filename
 
-
 class SingleCellAnalysis:
     """docstring for SingleCellAnalysis."""
 
@@ -392,46 +397,62 @@ class SingleCellAnalysis:
         mpl.rcParams['figure.dpi'] = 80
 
     # -------------------- SETUP ANALYSIS --------------------
-    def setup_analysis(self, matrix_filepath):
+    def setup_analysis(self, csv_filepath=None, mtx_filepath=None, 
+                        gene_filepath=None, bc_filepath=None):
         '''
         Load a raw count matrix for a single-cell RNA-seq experiment.
+
+        If data is a single matrix file, csv_filepath should be used
+        and the other three variable names should be None. If data is in
+        10x format (mtx, gene, barcode), csv_filepath should be None
+        and the other three variables should be used correspondingly
         '''
         # Hide FutureWarnings.
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
 
-        self._setup_analysis(matrix_filepath)
+        if not self._setup_analysis(csv_filepath, mtx_filepath, gene_filepath, bc_filepath):
+            return
         self._setup_analysis_ui()
 
         # Revert to default settings to show FutureWarnings.
         warnings.simplefilter('default',
                               FutureWarning) if self.verbose else None
 
-    def _setup_analysis(self, matrix_filepath):
-        # Downloads matrix if detects URL
-        local_matrix_filepath = matrix_filepath
-        if matrix_filepath.startswith('http'):
-            local_matrix_filepath = _download_text_file(matrix_filepath)
-        data = sc.read(local_matrix_filepath, cache=True).transpose()
+    def _setup_analysis(self, csv_filepath, mtx_filepath, gene_filepath,
+                        bc_filepath):
+        # Check for either one matrix file or all populated 10x fields, make
+        # sure user did not choose both or neither
+        paths_10x = [mtx_filepath, gene_filepath, bc_filepath]
+        use_csv = (csv_filepath != [])
+        use_10x = (paths_10x != [[], [], []])
+        if use_csv and use_10x:
+            display(_error_message("Can't use both single matrix file and 10X"))
+            return False
+        elif not use_csv and not use_10x:
+            display(_error_message("Must supply single matrix file or 10X files"))
+            return False
 
-        # Download genes.tsv and barcodes.tsv if matrix_filepath is URL
-        if matrix_filepath.endswith('.mtx'):
-            base_url = '/'.join(matrix_filepath.split('/')[:-1])
+        if use_csv:
+            local_csv_filepath = csv_filepath
+            if csv_filepath.startswith('http'):
+                local_csv_filepath = _download_text_file(csv_filepath)
+            data = sc.read(local_csv_filepath, cache=False).transpose()
 
-            # base_url refers to current directory if empty
-            if base_url == '':
-                base_url = '.'
+        elif use_10x:
+            local_mtx_filepath = mtx_filepath
+            local_gene_filepath = gene_filepath
+            local_bc_filepath = bc_filepath
 
-            barcodes_filepath = '/'.join([base_url, 'barcodes.tsv'])
-            genes_filepath = '/'.join([base_url, 'genes.tsv'])
-
-            # Download as necessary
-            if matrix_filepath.startswith('http'):
-                barcodes_filepath = _download_text_file(barcodes_filepath)
-                genes_filepath = _download_text_file(genes_filepath)
-
-            data.obs_names = np.genfromtxt(barcodes_filepath, dtype=str)
-            data.var_names = np.genfromtxt(genes_filepath, dtype=str)[:, 1]
+            if mtx_filepath.startswith('http'):
+                local_mtx_filepath = _download_text_file(mtx_filepath)
+            if gene_filepath.startswith('http'):
+                local_gene_filepath = _download_text_file(gene_filepath)
+            if bc_filepath.startswith('http'):
+                local_bc_filepath = _download_text_file(bc_filepath)
+            data = sc.read(local_mtx_filepath, cache=False).transpose()
+            data.obs_names = np.genfromtxt(local_bc_filepath, dtype=str)
+            data.var_names = np.genfromtxt(local_gene_filepath, dtype=str)[:,1]
 
         # This is needed to setup the "n_genes" column in data.obs.
         sc.pp.filter_cells(data, min_genes=0)
@@ -448,6 +469,7 @@ class SingleCellAnalysis:
         data.obs['n_counts'] = np.sum(data.X, axis=1)
         data.is_log = False
         self.data = data
+        return True
 
     def _setup_analysis_ui(self):
         measures = pd.DataFrame([
