@@ -557,7 +557,8 @@ class SingleCellAnalysis:
                     values = measures[measure]
                     # Draw density plots
                     ax = plt.subplot(gs[0, ax_col])
-                    sns.kdeplot(values, shade=True, ax=ax, color=color, legend=False)
+                    if sum(values) > 0:
+                        sns.kdeplot(values, shade=True, ax=ax, color=color, legend=False)
                     ax.set_xlim(0)
                     plt.setp(ax.get_xticklabels(), visible=False)
                     plt.setp(ax.get_yticklabels(), visible=False)
@@ -573,6 +574,8 @@ class SingleCellAnalysis:
                     for i in range(3, 5):
                         ycoords = list(ax.get_ylim())
                         ycoords[1] *= (1-0.16 * (i-2))
+                        if values.mean()+(i*values.std()) > values.max():
+                            continue
                         ax.plot(len(ax.get_ylim()) * [values.mean() + i * values.std()],
                                 ycoords, linestyle=':', color=color)
                         ax.text(values.mean() + i * values.std(), ax.get_ylim()
@@ -621,7 +624,7 @@ class SingleCellAnalysis:
                                       step=0.01,
                                       continuous_update=False,
                                       readout=False,
-                                      layout=Layout(margin='0 20px 0 0'))
+                                      layout=Layout(margin='0 20px 0 40px'))
             slider_box_children.append(slider)
 
         slider_box.children = slider_box_children
@@ -630,7 +633,7 @@ class SingleCellAnalysis:
         fig1_out = Output()
         with fig1_out:
             interactive_fig1 = interactive_output(plot_fig1, dict(zip(['a', 'b', 'c'], slider_box.children)))
-            interactive_fig1.layout.height = '420px'
+            interactive_fig1.layout.height = '450px'
             display(interactive_fig1, slider_box)
 
         # Descriptive text
