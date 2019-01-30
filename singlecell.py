@@ -549,7 +549,7 @@ class SingleCellAnalysis:
                 fig1 = plt.figure(figsize=(14, 4))
                 gs = mpl.gridspec.GridSpec(2, 3, wspace=0.1, hspace=0.05, height_ratios=[20, 1])
 
-                selected_info = HBox(layout=Layout(width='812px', margin='0 0 0 10px'))
+                selected_info = HBox(layout=Layout( width='812px', margin='0 0 0 10px'))
                 selected_info_children = []
                 is_selected = [True] * measures.shape[0]
 
@@ -557,7 +557,8 @@ class SingleCellAnalysis:
                     values = measures[measure]
                     # Draw density plots
                     ax = plt.subplot(gs[0, ax_col])
-                    sns.kdeplot(values, shade=True, ax=ax, color=color, legend=False)
+                    if sum(values) > 0:
+                        sns.kdeplot(values, shade=True, ax=ax, color=color, legend=False)
                     ax.set_xlim(0)
                     plt.setp(ax.get_xticklabels(), visible=False)
                     plt.setp(ax.get_yticklabels(), visible=False)
@@ -567,14 +568,18 @@ class SingleCellAnalysis:
 
                     # Draw mean
                     ax.plot(len(ax.get_ylim()) * [values.mean()], ax.get_ylim(), color=color)
-                    ax.text(values.mean(), ax.get_ylim()[1], 'x̅ = {:.2f}'.format(values.mean()), fontsize=13)
+                    ax.text(values.mean(), ax.get_ylim()[1], 'x̅', fontsize=13)
 
                     # Draw SD lines
                     for i in range(3, 5):
+                        ycoords = list(ax.get_ylim())
+                        ycoords[1] *= (1-0.16 * (i-2))
+                        if values.mean()+(i*values.std()) > values.max():
+                            continue
                         ax.plot(len(ax.get_ylim()) * [values.mean() + i * values.std()],
-                                ax.get_ylim(), linestyle=':', color=color)
+                                ycoords, linestyle=':', color=color)
                         ax.text(values.mean() + i * values.std(), ax.get_ylim()
-                                [1] * (1 - 0.08 * (i - 2)), 'x̅ + {}σ = {:.2f}'.format(i, values.mean() + i * values.std()), fontsize=13)
+                                [1] * (1-0.16 * (i-2)), 'x̅ + {}σ'.format(i), fontsize=13)
 
                     # Draw selected area
                     selected_area = patches.Rectangle((w[0], 0), w[1], len(ax.get_ylim()),
@@ -594,19 +599,22 @@ class SingleCellAnalysis:
                     sns.despine(ax=ax_1, left=True, bottom=True)
 
                     # Update selected info
-                    w_info = HTML(value='<code>{:.2f} - {:.2f}</code>'.format(w[0], w[1]),
-                                  layout=Layout(width='270px', padding='0', margin='0 20px 0 0'))
+                    w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]), 
+                                  layout=Layout(width='270px', padding='0', margin='0 0 0 25px'))
                     selected_info_children.append(w_info)
 
             plt.close()
             selected_info.children = selected_info_children
-            is_selected_info = HTML('<code><b>{:.2f}% ({} / {})</b></code> of total cells selected.'.format(sum(is_selected) /
-                                                                                                            len(is_selected) * 100, sum(is_selected), len(is_selected)), layout=Layout(margin='0 0 0 10px'))
+            is_selected_info = HTML('<font size=4><code><b>{:.2f}% ({} / {})</b></code> of total cells will be selected.</font>'.format(sum(is_selected) /
+                                                                                                            len(is_selected) * 100, 
+                                                                                                            sum(is_selected), 
+                                                                                                            len(is_selected)), 
+                                    layout=Layout(margin='0 0 0 200px'))
             display(
                 _create_export_button(fig1,
                                       '1_setup_analysis_single_qc_plots'), is_selected_info, fig1, selected_info)
 
-        slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 10px'))
+        slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 0'))
         slider_box_children = []
         for measure in measures:
             values = measures[measure]
@@ -616,7 +624,7 @@ class SingleCellAnalysis:
                                       step=0.01,
                                       continuous_update=False,
                                       readout=False,
-                                      layout=Layout(margin='0 20px 0 0'))
+                                      layout=Layout(margin='0 20px 0 40px'))
             slider_box_children.append(slider)
 
         slider_box.children = slider_box_children
@@ -625,7 +633,7 @@ class SingleCellAnalysis:
         fig1_out = Output()
         with fig1_out:
             interactive_fig1 = interactive_output(plot_fig1, dict(zip(['a', 'b', 'c'], slider_box.children)))
-            interactive_fig1.layout.height = '400px'
+            interactive_fig1.layout.height = '450px'
             display(interactive_fig1, slider_box)
 
         # Descriptive text
