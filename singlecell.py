@@ -730,14 +730,18 @@ class SingleCellAnalysis:
 
         _update_status(stat, "Filtering cells by #genes and #counts...")
 
+
         # Gene filtering
         sc.pp.filter_genes(self.data, min_cells=min_n_cells)
+
+
 
         # Filter cells within a range of # of genes and # of counts.
         sc.pp.filter_cells(self.data, min_genes=n_genes_range[0])
         sc.pp.filter_cells(self.data, max_genes=n_genes_range[1])
         sc.pp.filter_cells(self.data, min_counts=n_counts_range[0])
         sc.pp.filter_cells(self.data, max_counts=n_counts_range[1])
+
 
         # Remove cells that have too many mitochondrial genes expressed.
         _update_status(stat, "Removing cells high in mitochondrial genes...")
@@ -746,6 +750,7 @@ class SingleCellAnalysis:
                 self.data.obs['percent_mito'] * 100 < percent_mito_range[1])
         if not percent_mito_filter.any():
             self.data = self.data[percent_mito_filter, :]
+
 
         # Set the `.raw` attribute of AnnData object to the logarithmized raw gene expression for later use in
         # differential testing and visualizations of gene expression. This simply freezes the state of the data stored
@@ -865,7 +870,6 @@ class SingleCellAnalysis:
             float('{:0.1f}'.format(x)) for x in list(np.arange(.5, 2.1, 0.1))
         ]
         perp_range = range(5, min(51, len(self.data.obs_names)))
-
         # Default parameter values
         pcs = 10
         resolution = 1.2
@@ -930,7 +934,7 @@ class SingleCellAnalysis:
             <h4>Number of PCs (Principal Components)</h4>The number of principal components (PCs) to use in clustering.
             It is important to note that the fewer PCs we choose to use, the less noise we have when clustering,
             but at the risk of excluding relevant biological variance. Look at the plot in <b>Step 2</b> showing the
-            percent varianced explained bye each principle components and choose a cutoff where there is a clear elbow
+            percent varianced explained by each principle components and choose a cutoff where there is a clear elbow
             in the graph.<br><br>
             <h4>Resolution</h4>Higher resolution means more and smaller clusters. We find that values 0.6-1.2 typically
             returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for
