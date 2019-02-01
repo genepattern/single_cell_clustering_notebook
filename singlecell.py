@@ -669,7 +669,8 @@ class SingleCellAnalysis:
                           max_n_counts='inf',
                           min_percent_mito=0,
                           max_percent_mito='inf',
-                          normalization_method='LogNormalize'):
+                          normalization_method='LogNormalize',
+                          do_regression=True):
         '''
         Perform cell quality control by evaluating quality metrics, normalizing counts, scaling, and correcting for effects of total counts per cell and the percentage of mitochondrial genes expressed. Also detect highly variable genes and perform linear dimensional reduction (PCA).
         '''
@@ -707,7 +708,7 @@ class SingleCellAnalysis:
         # Perform filtering on genes and cells
         success_run = self._preprocess_counts(
             min_n_cells, n_genes_range, n_counts_range, percent_mito_range,
-            normalization_method, stat)
+            normalization_method, stat, do_regression)
 
         # Build UI output
         if success_run:
@@ -720,7 +721,8 @@ class SingleCellAnalysis:
                               FutureWarning) if self.verbose else None
 
     def _preprocess_counts(self, min_n_cells, n_genes_range, n_counts_range,
-                           percent_mito_range, normalization_method, stat):
+                           percent_mito_range, normalization_method, stat,
+                           do_regression):
         if self.data.raw:
             display(
                 _warning_message(
@@ -776,8 +778,9 @@ class SingleCellAnalysis:
             self.data.is_log = True
 
         # Regress out effects of total counts per cell and the percentage of mitochondrial genes expressed.
-        _update_status(stat, "Performing regression based on counts per cell and percent mitochondrial genes expressed...")
-        sc.pp.regress_out(self.data, ['n_counts', 'percent_mito'])
+        if do_regression:
+            _update_status(stat, "Performing regression based on counts per cell and percent mitochondrial genes expressed...")
+            sc.pp.regress_out(self.data, ['n_counts', 'percent_mito'])
 
         # Scale the data to unit variance and zero mean. Clips to max of 10.
         _update_status(stat, "Scaling data to have unit variance and zero mean...")
