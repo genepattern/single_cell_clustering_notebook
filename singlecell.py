@@ -1085,11 +1085,11 @@ class SingleCellAnalysis:
         heatmap_box = VBox([heatmap_header_box, marker_heatmap_output])
 
         # Populate tabs
-        main_box.children = [heatmap_box, marker_plot_box]
+        main_box.children = [marker_plot_box, heatmap_box]
 
         # TODO name tabs
-        main_box.set_title(0, 'Heatmap')
-        main_box.set_title(1, 'tSNE Plot')
+        main_box.set_title(0, 'tSNE Plot')
+        main_box.set_title(1, 'Heatmap')
         # Table
         explore_markers_box = Accordion(layout=Layout(
             max_width='425px', orientation='vertical'))
@@ -1118,7 +1118,7 @@ class SingleCellAnalysis:
                                       <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
                                          Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
                                       '''.format(_LINE_HEIGHT))
-        gene_input = Text()
+        gene_input = Text("CD14")
         update_button = Button(
             description='Plot Expression', button_style='info')
         gene_input_box = HBox([gene_input, update_button])
@@ -1180,8 +1180,10 @@ class SingleCellAnalysis:
             tab1_progress_bar = _create_progress_bar()
             marker_plot_tab_1_output.clear_output()
             with marker_plot_tab_1_output:
+
                 display(tab1_progress_bar)
 
+                
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1194,6 +1196,7 @@ class SingleCellAnalysis:
                         tsne_markers_fig,
                         '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
+                
 
             marker_plot_tab_2_output.clear_output()
             tab2_progress_bar = _create_progress_bar()
@@ -1352,8 +1355,10 @@ class SingleCellAnalysis:
         # Configure layout
         top_box = HBox([main_box, explore_markers_box])
         display(top_box)
+        update_query_plots("CD14")
         plot_heatmap()
         update_cluster_table()
+
 
         # Revert to default settings to show FutureWarnings.
         warnings.simplefilter('default',
