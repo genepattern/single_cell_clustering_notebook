@@ -669,7 +669,8 @@ class SingleCellAnalysis:
                           max_n_counts='inf',
                           min_percent_mito=0,
                           max_percent_mito='inf',
-                          normalization_method='LogNormalize'):
+                          normalization_method='LogNormalize',
+                          do_regression=True):
         '''
         Perform cell quality control by evaluating quality metrics, normalizing counts, scaling, and correcting for effects of total counts per cell and the percentage of mitochondrial genes expressed. Also detect highly variable genes and perform linear dimensional reduction (PCA).
         '''
@@ -707,7 +708,7 @@ class SingleCellAnalysis:
         # Perform filtering on genes and cells
         success_run = self._preprocess_counts(
             min_n_cells, n_genes_range, n_counts_range, percent_mito_range,
-            normalization_method, stat)
+            normalization_method, stat, do_regression)
 
         # Build UI output
         if success_run:
@@ -720,7 +721,8 @@ class SingleCellAnalysis:
                               FutureWarning) if self.verbose else None
 
     def _preprocess_counts(self, min_n_cells, n_genes_range, n_counts_range,
-                           percent_mito_range, normalization_method, stat):
+                           percent_mito_range, normalization_method, stat,
+                           do_regression):
         if self.data.raw:
             display(
                 _warning_message(
@@ -730,14 +732,18 @@ class SingleCellAnalysis:
 
         _update_status(stat, "Filtering cells by #genes and #counts...")
 
+
         # Gene filtering
         sc.pp.filter_genes(self.data, min_cells=min_n_cells)
+
+
 
         # Filter cells within a range of # of genes and # of counts.
         sc.pp.filter_cells(self.data, min_genes=n_genes_range[0])
         sc.pp.filter_cells(self.data, max_genes=n_genes_range[1])
         sc.pp.filter_cells(self.data, min_counts=n_counts_range[0])
         sc.pp.filter_cells(self.data, max_counts=n_counts_range[1])
+
 
         # Remove cells that have too many mitochondrial genes expressed.
         _update_status(stat, "Removing cells high in mitochondrial genes...")
@@ -746,6 +752,7 @@ class SingleCellAnalysis:
                 self.data.obs['percent_mito'] * 100 < percent_mito_range[1])
         if not percent_mito_filter.any():
             self.data = self.data[percent_mito_filter, :]
+
 
         # Set the `.raw` attribute of AnnData object to the logarithmized raw gene expression for later use in
         # differential testing and visualizations of gene expression. This simply freezes the state of the data stored
@@ -771,8 +778,9 @@ class SingleCellAnalysis:
             self.data.is_log = True
 
         # Regress out effects of total counts per cell and the percentage of mitochondrial genes expressed.
-        _update_status(stat, "Performing regression based on counts per cell and percent mitochondrial genes expressed...")
-        sc.pp.regress_out(self.data, ['n_counts', 'percent_mito'])
+        if do_regression:
+            _update_status(stat, "Performing regression based on counts per cell and percent mitochondrial genes expressed...")
+            sc.pp.regress_out(self.data, ['n_counts', 'percent_mito'])
 
         # Scale the data to unit variance and zero mean. Clips to max of 10.
         _update_status(stat, "Scaling data to have unit variance and zero mean...")
@@ -865,7 +873,6 @@ class SingleCellAnalysis:
             float('{:0.1f}'.format(x)) for x in list(np.arange(.5, 2.1, 0.1))
         ]
         perp_range = range(5, min(51, len(self.data.obs_names)))
-
         # Default parameter values
         pcs = 10
         resolution = 1.2
@@ -930,7 +937,7 @@ class SingleCellAnalysis:
             <h4>Number of PCs (Principal Components)</h4>The number of principal components (PCs) to use in clustering.
             It is important to note that the fewer PCs we choose to use, the less noise we have when clustering,
             but at the risk of excluding relevant biological variance. Look at the plot in <b>Step 2</b> showing the
-            percent varianced explained bye each principle components and choose a cutoff where there is a clear elbow
+            percent varianced explained by each principle components and choose a cutoff where there is a clear elbow
             in the graph.<br><br>
             <h4>Resolution</h4>Higher resolution means more and smaller clusters. We find that values 0.6-1.2 typically
             returns good results for single cell datasets of around 3K cells. Optimal resolution often increases for
@@ -1081,11 +1088,11 @@ class SingleCellAnalysis:
         heatmap_box = VBox([heatmap_header_box, marker_heatmap_output])
 
         # Populate tabs
-        main_box.children = [heatmap_box, marker_plot_box]
+        main_box.children = [marker_plot_box, heatmap_box]
 
         # TODO name tabs
-        main_box.set_title(0, 'Heatmap')
-        main_box.set_title(1, 'tSNE Plot')
+        main_box.set_title(0, 'tSNE Plot')
+        main_box.set_title(1, 'Heatmap')
         # Table
         explore_markers_box = Accordion(layout=Layout(
             max_width='425px', orientation='vertical'))
@@ -1114,7 +1121,7 @@ class SingleCellAnalysis:
                                       <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
                                          Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
                                       '''.format(_LINE_HEIGHT))
-        gene_input = Text()
+        gene_input = Text("CD14")
         update_button = Button(
             description='Plot Expression', button_style='info')
         gene_input_box = HBox([gene_input, update_button])
@@ -1176,8 +1183,10 @@ class SingleCellAnalysis:
             tab1_progress_bar = _create_progress_bar()
             marker_plot_tab_1_output.clear_output()
             with marker_plot_tab_1_output:
+
                 display(tab1_progress_bar)
 
+                
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1190,6 +1199,7 @@ class SingleCellAnalysis:
                         tsne_markers_fig,
                         '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
+                
 
             marker_plot_tab_2_output.clear_output()
             tab2_progress_bar = _create_progress_bar()
@@ -1348,8 +1358,10 @@ class SingleCellAnalysis:
         # Configure layout
         top_box = HBox([main_box, explore_markers_box])
         display(top_box)
+        update_query_plots("CD14")
         plot_heatmap()
         update_cluster_table()
+
 
         # Revert to default settings to show FutureWarnings.
         warnings.simplefilter('default',
