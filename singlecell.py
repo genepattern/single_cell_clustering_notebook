@@ -25,6 +25,8 @@ import plotly.tools as tls
 import scanpy.api as sc
 from beakerx import TableDisplay, TableDisplayCellHighlighter
 
+import qgrid
+
 py.init_notebook_mode()
 warnings.simplefilter('ignore', UserWarning)
 
@@ -1023,7 +1025,355 @@ class SingleCellAnalysis:
 
     # -------------------- MARKER ANALYSIS --------------------
 
+    def visualize_top_markers(self):
+        warnings.simplefilter('ignore',
+                                FutureWarning) if self.verbose else None
+
+        ## Commonly used data
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cluster_names = np.unique(cell_clusters).tolist()
+        cluster_names.sort(key=int)
+        heatmap_text = HTML('''
+        <h3>Visualize Top Markers</h3>
+        <p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
+        '''.format(_LINE_HEIGHT))
+        heatmap_n_markers = IntSlider(
+            description="# markers", value=5, min=5, max=100, step=5)
+        heatmap_test = Dropdown(
+            description='test',
+            options=['wilcoxon', 't-test'],
+            value='wilcoxon')
+        heatmap_plot_button = Button(description='Plot', button_style='info')
+        heatmap_header_box = VBox()
+        heatmap_header_box.children = [
+            heatmap_text, _info_message(
+                'Double-click the heatmap to zoom in and scroll for more detail.'
+            ), heatmap_n_markers, heatmap_test, heatmap_plot_button
+        ]
+
+        marker_heatmap_output = Output()
+
+        def plot_heatmap(button=None):
+            marker_heatmap_output.clear_output()
+            top_marker_progress_bar = _create_progress_bar()
+            with marker_heatmap_output:
+                display(top_marker_progress_bar)
+
+                expr, group_labels = self._find_top_markers(
+                    heatmap_n_markers.value, heatmap_test.value)
+                fig = self._plot_top_markers_heatmap(expr, group_labels)
+
+                display(
+                    _create_export_button(
+                        fig,
+                        '4_visualize_top_markers_heatmap_plot'
+                    ))
+
+                display(fig)
+                top_marker_progress_bar.close()
+
+        heatmap_plot_button.on_click(plot_heatmap)
+
+        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output]) 
+
+        display(heatmap_box)
+
+        plot_heatmap()
+
+    def visualize_marker_expression(self):
+        marker_box = VBox() #box that will contain tSNEs and violins
+        markers_header_box = VBox() #box for the header description and button
+        ## code for making the header and button
+        markers_plot_box = HBox()
+        marker_box.children = [markers_header_box, markers_plot_box]
+
+        gene_input_description = HTML('''<h3>Visualize Marker Expression</h3>
+                                      <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
+                                         Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
+                                      '''.format(_LINE_HEIGHT))
+        gene_input = Text("CD14")
+        update_button = Button(
+            description='Plot Expression', button_style='info')
+        gene_input_box = HBox([gene_input, update_button])
+
+        markers_header_box.children = [gene_input_description, gene_input_box]
+
+        tsne_box = Output()
+        violin_box = Output()
+        markers_plot_box.children = [tsne_box, violin_box]
+
+        def check_gene_input(t):
+            '''Don't allow submission of empty input.'''
+            if gene_input.value == '':
+                update_button.disabled = True
+            else:
+                update_button.disabled = False
+
+        def update_query_plots(b):
+            # Format gene list. Split by comma, remove whitespace, then split by whitespace.
+            tsne_box.clear_output()
+            violin_box.clear_output()
+
+            gene_list = str(gene_input.value).upper()
+            gene_list = gene_list.split(',')
+            gene_list = [s.split(' ') for s in gene_list]
+            gene_list = np.concatenate(gene_list).ravel().tolist()
+            gene_list = [gene for gene in gene_list if gene.strip()]
+
+            if len(gene_list) == 1:
+                gene_list = [gene_list[0]]
+
+            # Retrieve expression
+            gene_locs = []
+            for gene in gene_list:
+                if gene in self.data.raw.var_names:
+                    gene_locs.append(self.data.raw.var_names.get_loc(gene))
+                else:
+                    # Gene not found
+                    tsne_box.clear_output()
+                    with tsne_box:
+                        display(
+                            _warning_message(
+                                'The gene <code>{}</code> was not found. Try again.'.
+                                format(gene)))
+                    return
+            if type(self.data.raw.X) in [np.array, np.ndarray]:
+                gene_values = pd.DataFrame(self.data.raw.X[:, gene_locs])
+            else:
+                gene_values = pd.DataFrame(
+                    self.data.raw.X[:, gene_locs].toarray())
+
+            # Final values for plot
+            if len(gene_values.shape) > 1:
+                values = gene_values.mean(axis=1)
+            else:
+                values = gene_values
+            values.index = self.data.obs_names
+
+            title = ''
+            for gene in gene_list:
+                if len(title) > 0:
+                    title = '{}, {}'.format(title, gene)
+                else:
+                    title = gene
+
+            # Marker tSNE plot
+            tab1_progress_bar = _create_progress_bar()
+            with tsne_box:
+
+                display(tab1_progress_bar)
+
+                
+                # generate tSNE markers plot
+                tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
+                tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
+
+                # Hide progress bar
+                tab1_progress_bar.close()
+
+                display(
+                    _create_export_button(
+                        tsne_markers_fig,
+                        '4_visualize_marker_tsne_plot'))
+                py.iplot(tsne_markers_py_fig, show_link=False)
+                
+            # Violin plots
+            
+            with violin_box:
+                marker_violin_plot = self._plot_violin_plots(title, values)
+                display(
+                    _create_export_button(
+                        marker_violin_plot,
+                        '4_visualize_marker_violin_plot'))
+                display(
+                    HTML('<h3>{} Expression Across Clusters</h3>'.format(
+                        title)))
+                display(marker_violin_plot)
+
+        gene_input.observe(check_gene_input)
+        gene_input.on_submit(update_query_plots)
+        update_button.on_click(update_query_plots)
+
+        display(marker_box)
+
+        update_query_plots("CD14")       
+
     def visualize_markers(self):
+        # Hide FutureWarnings
+        warnings.simplefilter('ignore',
+                                FutureWarning) if self.verbose else None
+
+        ## Commonly used data
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cluster_names = np.unique(cell_clusters).tolist()
+        cluster_names.sort(key=int)
+
+        marker_box = VBox() #box that will contain tSNEs and violins
+        markers_header_box = VBox() #box for the header description and button
+        ## code for making the header and button
+        markers_plot_box = HBox()
+        marker_box.children = [markers_header_box, markers_plot_box]
+
+        gene_input_description = HTML('''<h3>Visualize Markers</h3>
+                                      <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
+                                         Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
+                                      '''.format(_LINE_HEIGHT))
+        gene_input = Text("CD14")
+        update_button = Button(
+            description='Plot Expression', button_style='info')
+        gene_input_box = HBox([gene_input, update_button])
+
+        markers_header_box.children = [gene_input_description, gene_input_box]
+
+        tsne_box = Output()
+        violin_box = Output()
+        markers_plot_box.children = [tsne_box, violin_box]
+
+        def check_gene_input(t):
+            '''Don't allow submission of empty input.'''
+            if gene_input.value == '':
+                update_button.disabled = True
+            else:
+                update_button.disabled = False
+
+        def update_query_plots(b):
+            # Format gene list. Split by comma, remove whitespace, then split by whitespace.
+            tsne_box.clear_output()
+            violin_box.clear_output()
+
+            gene_list = str(gene_input.value).upper()
+            gene_list = gene_list.split(',')
+            gene_list = [s.split(' ') for s in gene_list]
+            gene_list = np.concatenate(gene_list).ravel().tolist()
+            gene_list = [gene for gene in gene_list if gene.strip()]
+
+            if len(gene_list) == 1:
+                gene_list = [gene_list[0]]
+
+            # Retrieve expression
+            gene_locs = []
+            for gene in gene_list:
+                if gene in self.data.raw.var_names:
+                    gene_locs.append(self.data.raw.var_names.get_loc(gene))
+                else:
+                    # Gene not found
+                    tsne_box.clear_output()
+                    with tsne_box:
+                        display(
+                            _warning_message(
+                                'The gene <code>{}</code> was not found. Try again.'.
+                                format(gene)))
+                    return
+            if type(self.data.raw.X) in [np.array, np.ndarray]:
+                gene_values = pd.DataFrame(self.data.raw.X[:, gene_locs])
+            else:
+                gene_values = pd.DataFrame(
+                    self.data.raw.X[:, gene_locs].toarray())
+
+            # Final values for plot
+            if len(gene_values.shape) > 1:
+                values = gene_values.mean(axis=1)
+            else:
+                values = gene_values
+            values.index = self.data.obs_names
+
+            title = ''
+            for gene in gene_list:
+                if len(title) > 0:
+                    title = '{}, {}'.format(title, gene)
+                else:
+                    title = gene
+
+            # Marker tSNE plot
+            tab1_progress_bar = _create_progress_bar()
+            with tsne_box:
+
+                display(tab1_progress_bar)
+
+                
+                # generate tSNE markers plot
+                tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
+                tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
+
+                # Hide progress bar
+                tab1_progress_bar.close()
+
+                display(
+                    _create_export_button(
+                        tsne_markers_fig,
+                        '4_visualize_marker_tsne_plot'))
+                py.iplot(tsne_markers_py_fig, show_link=False)
+                
+            # Violin plots
+            
+            with violin_box:
+                marker_violin_plot = self._plot_violin_plots(title, values)
+                display(
+                    _create_export_button(
+                        marker_violin_plot,
+                        '4_visualize_marker_violin_plot'))
+                display(
+                    HTML('<h3>{} Expression Across Clusters</h3>'.format(
+                        title)))
+                display(marker_violin_plot)
+
+        gene_input.observe(check_gene_input)
+        gene_input.on_submit(update_query_plots)
+        update_button.on_click(update_query_plots)
+
+        display(marker_box)
+
+        update_query_plots("CD14")
+
+
+        heatmap_text = HTML('''
+        <h3>Visualize Top Markers</h3>
+        <p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
+        '''.format(_LINE_HEIGHT))
+        heatmap_n_markers = IntSlider(
+            description="# markers", value=10, min=5, max=100, step=5)
+        heatmap_test = Dropdown(
+            description='test',
+            options=['wilcoxon', 't-test'],
+            value='wilcoxon')
+        heatmap_plot_button = Button(description='Plot', button_style='info')
+        heatmap_header_box = VBox()
+        heatmap_header_box.children = [
+            heatmap_text, _info_message(
+                'Double-click the heatmap to zoom in and scroll for more detail.'
+            ), heatmap_n_markers, heatmap_test, heatmap_plot_button
+        ]
+
+        marker_heatmap_output = Output()
+
+        def plot_heatmap(button=None):
+            marker_heatmap_output.clear_output()
+            top_marker_progress_bar = _create_progress_bar()
+            with marker_heatmap_output:
+                display(top_marker_progress_bar)
+
+                expr, group_labels = self._find_top_markers(
+                    heatmap_n_markers.value, heatmap_test.value)
+                fig = self._plot_top_markers_heatmap(expr, group_labels)
+
+                display(
+                    _create_export_button(
+                        fig,
+                        '4_visualize_top_markers_heatmap_plot'
+                    ))
+
+                display(fig)
+                top_marker_progress_bar.close()
+
+        heatmap_plot_button.on_click(plot_heatmap)
+
+        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output]) 
+
+        display(heatmap_box)
+
+        plot_heatmap()
+
+    def OLD_visualize_markers(self):
         # Hide FutureWarnings.
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
@@ -1358,6 +1708,7 @@ class SingleCellAnalysis:
         # Configure layout
         top_box = HBox([main_box, explore_markers_box])
         display(top_box)
+
         update_query_plots("CD14")
         plot_heatmap()
         update_cluster_table()
@@ -1581,7 +1932,7 @@ class SingleCellAnalysis:
         gene_labels = [label % 2 for label in gene_labels]
         gene_colors = pd.Series(gene_labels).map(cmap_binary).tolist()
 
-        dim = 12 * num_markers / 10
+        dim = max(12, 12*num_markers/10)
         # Heatmap
         g = sns.clustermap(
             counts,
