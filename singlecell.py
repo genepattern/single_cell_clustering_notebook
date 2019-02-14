@@ -23,9 +23,9 @@ import subprocess
 import plotly.offline as py
 import plotly.tools as tls
 import scanpy.api as sc
-from beakerx import TableDisplay, TableDisplayCellHighlighter
+#from beakerx import TableDisplay, TableDisplayCellHighlighter
 
-import qgrid
+#import qgrid
 
 py.init_notebook_mode()
 warnings.simplefilter('ignore', UserWarning)
@@ -1196,9 +1196,101 @@ class SingleCellAnalysis:
 
         display(marker_box)
 
-        update_query_plots("CD14")       
+        update_query_plots("CD14")
 
-    def visualize_markers(self):
+
+    def compare_clusters(self):
+        # Hide FutureWarnings
+        warnings.simplefilter('ignore',
+                                FutureWarning) if self.verbose else None
+        # Commonly used data
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cluster_names = np.unique(cell_clusters).tolist()
+        cluster_names.sort(key=int)
+
+        cluster_table_header = HTML('''
+        <p style="font-size:14px; line-height:{};">Test for differentially expressed genes between subpopulations of cells.</p>'''
+                                    .format(_LINE_HEIGHT))
+
+        # Parameters for markers test
+        cluster_param_box = HBox()
+        param_c_1 = Dropdown(
+            options=['cluster'] + cluster_names,
+            value=0,
+            layout=Layout(width='90px'))
+        param_c_2 = Dropdown(
+            options=['cluster', 'rest'] + cluster_names,
+            value='rest',
+            layout=Layout(width='90px'))
+        versus_text = HTML(' vs. ')
+        cluster_param_box.children = [param_c_1, versus_text, param_c_2]
+
+        param_test = Dropdown(
+            options=['test method', 'wilcoxon', 't-test'],
+            value='wilcoxon',
+            layout=Layout(width='90px'))
+        cluster_table_button = Button(
+            description='Explore', button_style='info')
+        cluster_table_note = HTML('''
+            <hr>
+            <h4>Output Table Info</h4>
+            <p style="font-size:14px; line-height:{};">
+            <ul style="list-style-position: inside; padding-left: 0; font-size:14px; line-height:{};">
+            <li><code>Gene</code>: the gene name<br></li>
+            <li><code>adj.pval</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
+            <li><code>logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the first group that express the gene<br></li>
+            <li><code>%.expr.c#</code>: # of cells in the second group that express the gene<br></li>
+            </ul>
+            <hr>
+            '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
+
+        cluster_param_header = HTML('<h4>Compare Clusters</h4>')
+
+        volcano_box = Output(layout=Layout(
+            display='flex',
+            align_items='center',
+            justify_content='center',
+            margin='0 0 0 -50px'))
+
+        def _update_volcano_plot(b=None):
+            volcano_box.clear_output()
+            prog_bar = _create_progress_bar()
+            with volcano_box:
+                display(prog_bar)
+
+            ident_1 = param_c_1.value
+            ident_2 = param_c_2.value
+            test = param_test.value
+
+            table = self._find_markers(ident_1, ident_2, test)
+            table = table.astype('float')
+
+            volcano_plot = plt.figure(figsize=(7,6))
+            nlog10_pval = -np.log10(table['adj.pval'])
+            plt.scatter(table['logFC'], nlog10_pval)
+
+            plt.close()
+
+            volcano_py_fig = tls.mpl_to_plotly(volcano_plot)
+
+
+            with volcano_box:
+                display(
+                    _create_export_button(volcano_plot, 'clusters_volcano_plot'))
+                prog_bar.close()
+                py.iplot(volcano_py_fig, show_link=False)
+
+        display(cluster_param_header)
+        display(cluster_param_box)
+        display(param_test)
+        display(cluster_table_button)
+        display(volcano_box)
+        cluster_table_button.on_click(_update_volcano_plot)
+
+        _update_volcano_plot()
+
+    def visualize_markers(self):  ## DELETE ME
         # Hide FutureWarnings
         warnings.simplefilter('ignore',
                                 FutureWarning) if self.verbose else None
@@ -1373,7 +1465,7 @@ class SingleCellAnalysis:
 
         plot_heatmap()
 
-    def OLD_visualize_markers(self):
+    def OLD_visualize_markers(self):  ## DELETE ME
         # Hide FutureWarnings.
         warnings.simplefilter('ignore',
                               FutureWarning) if self.verbose else None
@@ -1772,8 +1864,10 @@ class SingleCellAnalysis:
             groups=[ident_1],
             reference=ident_2,
             use_raw=True,
-            n_genes=min(100, len(self.data.var_names)),
-            test_type=test)
+            #n_genes=min(100, len(self.data.var_names)),
+            n_genes = len(self.data.var_names),
+            test_type=test,
+            rankby_abs=False)
 
         # Format results
         marker_names = [
@@ -1846,6 +1940,8 @@ class SingleCellAnalysis:
                 '{}{}'.format(pct_expr_2_prefix, ident_2)
             ]).T
         results.set_index(['Gene'], inplace=True)
+        return results
+        """
         table = TableDisplay(results)
         for c in results.columns:
             # flip for p-value
@@ -1865,6 +1961,7 @@ class SingleCellAnalysis:
             table.addCellHighlighter(highlighter)
 
         return table
+        """
 
     def _find_top_markers(self, n_markers, test):
         sc.tl.rank_genes_groups(
