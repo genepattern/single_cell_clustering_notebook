@@ -1257,7 +1257,7 @@ class SingleCellAnalysis:
             margin='0 0 0 -50px'))
 
         def _update_volcano_plot(b=None):
-            print("Edwin making modifications on 2019-02-19")
+            
             volcano_box.clear_output()
             prog_bar = _create_progress_bar()
             with volcano_box:
@@ -1913,11 +1913,11 @@ class SingleCellAnalysis:
 
 
         # Compute log fold change for each gene
-        log_fc = list(mean_1 / mean_2)
-        log_fc = ['%.2f' % v for v in log_fc]
-        log_fc = [float(x) for x in log_fc]
-        # Replace 'inf' with 0
-        log_fc = [0 if e == float('inf') else e for e in log_fc]
+        log_fc = list(mean_2 / mean_1)
+        # log_fc = ['%.2f' % v for v in log_fc]
+        # log_fc = [float(x) for x in log_fc]
+        # # Replace 'inf' with 0
+        # log_fc = [0 if e == float('inf') else e for e in log_fc]
         ## Adding log2 on 2019-02-19
         log_fc = [0 if e < np.finfo(np.float32).eps else np.log2(e) for e in log_fc]
 
