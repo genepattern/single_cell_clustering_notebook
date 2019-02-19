@@ -835,7 +835,8 @@ class SingleCellAnalysis:
     def _plot_pca(self):
         # mpl figure
         fig_elbow_plot = plt.figure(figsize=(7, 6))
-        pc_var = self.data.uns['pca_variance_ratio']
+        #pc_var = self.data.uns['pca_variance_ratio']
+        pc_var = self.data.uns['pca']['variance_ratio']
         pc_var = pc_var[:min(len(pc_var), 30)]
 
         # Calculate percent variance explained
@@ -969,17 +970,19 @@ class SingleCellAnalysis:
             perplexity=perplexity,
             learning_rate=1000,
             n_jobs=8)
+        sc.pp.neighbors(
+            self.data,
+            n_neighbors=10)
         sc.tl.louvain(
             self.data,
-            n_neighbors=10,
             resolution=resolution,
-            recompute_graph=True)
+            )
 
-        self.data.obs['louvain_groups']
+        self.data.obs['louvain']
 
     def _plot_tsne(self, figsize):
         # Clusters
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         num_clusters = len(cluster_names)
 
@@ -1001,7 +1004,7 @@ class SingleCellAnalysis:
                 x='tSNE_1',
                 y='tSNE_2',
                 kind='scatter',
-                c=colors[c],
+                c=[colors[c]],
                 label=c,
                 alpha=0.7,
                 ax=ax,
@@ -1030,7 +1033,7 @@ class SingleCellAnalysis:
                                 FutureWarning) if self.verbose else None
 
         ## Commonly used data
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
         heatmap_text = HTML('''
@@ -1204,7 +1207,7 @@ class SingleCellAnalysis:
         warnings.simplefilter('ignore',
                                 FutureWarning) if self.verbose else None
         # Commonly used data
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
 
@@ -1296,7 +1299,7 @@ class SingleCellAnalysis:
                                 FutureWarning) if self.verbose else None
 
         ## Commonly used data
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
 
@@ -1471,7 +1474,7 @@ class SingleCellAnalysis:
                               FutureWarning) if self.verbose else None
 
         # Commonly used data
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
 
@@ -1834,7 +1837,7 @@ class SingleCellAnalysis:
     def _plot_violin_plots(self, gene, gene_values):
         fig = plt.figure(figsize=(8, 5))
         ax = plt.gca()
-        groups = self.data.obs['louvain_groups']
+        groups = self.data.obs['louvain']
         sns.stripplot(
             x=groups, y=gene_values, size=3, jitter=True, color='black', ax=ax)
         sns.violinplot(
@@ -1860,21 +1863,20 @@ class SingleCellAnalysis:
         # Perform test
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain_groups',
+            'louvain',
             groups=[ident_1],
             reference=ident_2,
             use_raw=True,
-            #n_genes=min(100, len(self.data.var_names)),
             n_genes = len(self.data.var_names),
             test_type=test,
             rankby_abs=False)
 
         # Format results
         marker_names = [
-            x[0] for x in self.data.uns['rank_genes_groups_gene_names']
+            x[0] for x in self.data.uns['rank_genes_groups']['names']
         ]
         marker_scores = [
-            x[0] for x in self.data.uns['rank_genes_groups_gene_scores']
+            x[0] for x in self.data.uns['rank_genes_groups']['scores']
         ]
 
         # Convert to p-values
@@ -1883,12 +1885,11 @@ class SingleCellAnalysis:
             marker_scores, method='fdr_bh')[1].tolist()
         marker_scores = ['%.3G' % x for x in marker_scores]
 
-        clusters = self.data.obs['louvain_groups'].astype(int)
+        clusters = self.data.obs['louvain'].astype(int)
         is_ident_1 = (clusters == int(ident_1))
         if ident_2 is not 'rest':
             is_ident_2 = (clusters == int(ident_2))
 
-        # gene_locs = [self.data.raw.var_names.get_loc(gene) for gene in marker_names]
         if type(self.data.raw.X) not in [np.array, np.ndarray]:
             df = pd.DataFrame(
                 self.data.raw.X.toarray(),
@@ -1966,14 +1967,14 @@ class SingleCellAnalysis:
     def _find_top_markers(self, n_markers, test):
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain_groups',
+            'louvain',
             use_raw=True,
             n_genes=min(n_markers, len(self.data.var_names)),
             test_type=test)
 
         # genes sorted by top (rows), clusters (columns)
         markers_per_cluster = pd.DataFrame(
-            self.data.uns['rank_genes_groups_gene_names'])
+            self.data.uns['rank_genes_groups']['names'])
         markers = np.array([
             markers_per_cluster[c].values.tolist()
             for c in markers_per_cluster.columns
@@ -1981,7 +1982,7 @@ class SingleCellAnalysis:
         marker_locs = [self.data.raw.var_names.get_loc(m) for m in markers]
 
         # clusters
-        clusters = self.data.obs['louvain_groups'].astype(int)
+        clusters = self.data.obs['louvain'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
@@ -2010,7 +2011,8 @@ class SingleCellAnalysis:
         return expr, group_labels
 
     def _plot_top_markers_heatmap(self, counts, group_labels):
-        clusters = self.data.obs['louvain_groups'].astype(int)
+        #clusters = self.data.obs['louvain_groups'].astype(int)
+        clusters = self.data.obs['louvain'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
