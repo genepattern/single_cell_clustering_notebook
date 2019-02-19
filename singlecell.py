@@ -413,7 +413,7 @@ class SingleCellAnalysis:
         mpl.rcParams['figure.dpi'] = 80
 
     # -------------------- SETUP ANALYSIS --------------------
-    def setup_analysis(self, csv_filepath=None, gene_x_cell=True, mtx_filepath=None, 
+    def setup_analysis(self, csv_filepath=None, gene_x_cell=True, mtx_filepath=None,
                         gene_filepath=None, bc_filepath=None):
         '''
         Load a raw count matrix for a single-cell RNA-seq experiment.
@@ -430,7 +430,7 @@ class SingleCellAnalysis:
         stat = _get_new_status("Preparing your files...")
         display(stat)
 
-        if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath, 
+        if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath,
                                     gene_filepath, bc_filepath, stat):
             return
 
@@ -504,7 +504,7 @@ class SingleCellAnalysis:
             if local_bc_filepath.endswith('.zip'):
                 _update_status(stat, "Unpacking "+local_bc_filepath+"...")
                 subprocess.call('unzip -o '+local_bc_filepath, shell=True)
-                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1]) 
+                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1])
 
             _update_status(stat, "Loading "+local_mtx_filepath+"...")
             data = sc.read(local_mtx_filepath, cache=False).transpose()
@@ -601,16 +601,16 @@ class SingleCellAnalysis:
                     sns.despine(ax=ax_1, left=True, bottom=True)
 
                     # Update selected info
-                    w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]), 
+                    w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]),
                                   layout=Layout(width='270px', padding='0', margin='0 0 0 25px'))
                     selected_info_children.append(w_info)
 
             plt.close()
             selected_info.children = selected_info_children
             is_selected_info = HTML('<font size=4><code><b>{:.2f}% ({} / {})</b></code> of total cells will be selected.</font>'.format(sum(is_selected) /
-                                                                                                            len(is_selected) * 100, 
-                                                                                                            sum(is_selected), 
-                                                                                                            len(is_selected)), 
+                                                                                                            len(is_selected) * 100,
+                                                                                                            sum(is_selected),
+                                                                                                            len(is_selected)),
                                     layout=Layout(margin='0 0 0 200px'))
             display(
                 _create_export_button(fig1,
@@ -1077,7 +1077,7 @@ class SingleCellAnalysis:
 
         heatmap_plot_button.on_click(plot_heatmap)
 
-        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output]) 
+        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output])
 
         display(heatmap_box)
 
@@ -1166,7 +1166,7 @@ class SingleCellAnalysis:
 
                 display(tab1_progress_bar)
 
-                
+
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1179,9 +1179,9 @@ class SingleCellAnalysis:
                         tsne_markers_fig,
                         '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
-                
+
             # Violin plots
-            
+
             with violin_box:
                 marker_violin_plot = self._plot_violin_plots(title, values)
                 display(
@@ -1257,6 +1257,7 @@ class SingleCellAnalysis:
             margin='0 0 0 -50px'))
 
         def _update_volcano_plot(b=None):
+            print("Edwin making modifications on 2019-02-19")
             volcano_box.clear_output()
             prog_bar = _create_progress_bar()
             with volcano_box:
@@ -1268,10 +1269,12 @@ class SingleCellAnalysis:
 
             table = self._find_markers(ident_1, ident_2, test)
             table = table.astype('float')
+            # display(table['logFC'])
 
             volcano_plot = plt.figure(figsize=(7,6))
             nlog10_pval = -np.log10(table['adj.pval'])
             plt.scatter(table['logFC'], nlog10_pval)
+
 
             plt.close()
 
@@ -1385,7 +1388,7 @@ class SingleCellAnalysis:
 
                 display(tab1_progress_bar)
 
-                
+
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1398,9 +1401,9 @@ class SingleCellAnalysis:
                         tsne_markers_fig,
                         '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
-                
+
             # Violin plots
-            
+
             with violin_box:
                 marker_violin_plot = self._plot_violin_plots(title, values)
                 display(
@@ -1462,7 +1465,7 @@ class SingleCellAnalysis:
 
         heatmap_plot_button.on_click(plot_heatmap)
 
-        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output]) 
+        heatmap_box = VBox([heatmap_header_box, marker_heatmap_output])
 
         display(heatmap_box)
 
@@ -1631,7 +1634,7 @@ class SingleCellAnalysis:
 
                 display(tab1_progress_bar)
 
-                
+
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1644,7 +1647,7 @@ class SingleCellAnalysis:
                         tsne_markers_fig,
                         '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
-                
+
 
             marker_plot_tab_2_output.clear_output()
             tab2_progress_bar = _create_progress_bar()
@@ -1908,12 +1911,15 @@ class SingleCellAnalysis:
         else:
             mean_2 = np.mean(df.loc[is_ident_2, marker_names])
 
+
         # Compute log fold change for each gene
         log_fc = list(mean_1 / mean_2)
         log_fc = ['%.2f' % v for v in log_fc]
         log_fc = [float(x) for x in log_fc]
         # Replace 'inf' with 0
         log_fc = [0 if e == float('inf') else e for e in log_fc]
+        ## Adding log2 on 2019-02-19
+        log_fc = [0 if e < np.finfo(np.float32).eps else np.log2(e) for e in log_fc]
 
         # Compute percent expressed in each group
         pct_1 = (df.loc[is_ident_1, marker_names] > 0
