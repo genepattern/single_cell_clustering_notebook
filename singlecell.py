@@ -612,9 +612,7 @@ class SingleCellAnalysis:
                                                                                                             sum(is_selected),
                                                                                                             len(is_selected)),
                                     layout=Layout(margin='0 0 0 200px'))
-            display(
-                _create_export_button(fig1,
-                                      '1_setup_analysis_single_qc_plots'), is_selected_info, fig1, selected_info)
+            display(is_selected_info, fig1, selected_info)
 
         slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 0'))
         slider_box_children = []
@@ -635,7 +633,6 @@ class SingleCellAnalysis:
         fig1_out = Output()
         with fig1_out:
             interactive_fig1 = interactive_output(plot_fig1, dict(zip(['a', 'b', 'c'], slider_box.children)))
-            interactive_fig1.layout.height = '450px'
             display(interactive_fig1, slider_box)
 
         # Descriptive text
@@ -820,9 +817,6 @@ class SingleCellAnalysis:
         display(output_div)
         display(_info_message('Hover over the plot to interact.'))
         pca_fig, pca_py_fig = self._plot_pca()
-        display(
-            _create_export_button(
-                pca_fig, '2_preprocess_counts_pca_variance_ratio_plot'))
         pca_plot_box = Output(layout=Layout(
             display='flex',
             align_items='center',
@@ -921,9 +915,6 @@ class SingleCellAnalysis:
                                perp_slider.value)
                 tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(10, 9))
 
-                display(
-                    _create_export_button(
-                        tsne_fig, '3_cluster_cells_tsne_plot'))
                 py.iplot(py_tsne_fig, show_link=False)
 
                 # close progress bar
@@ -1068,12 +1059,6 @@ class SingleCellAnalysis:
                     heatmap_n_markers.value, heatmap_test.value)
                 fig = self._plot_top_markers_heatmap(expr, group_labels)
 
-                display(
-                    _create_export_button(
-                        fig,
-                        '4_visualize_top_markers_heatmap_plot'
-                    ))
-
                 display(fig)
                 top_marker_progress_bar.close()
 
@@ -1179,20 +1164,12 @@ class SingleCellAnalysis:
                 # Hide progress bar
                 tab1_progress_bar.close()
 
-                display(
-                    _create_export_button(
-                        tsne_markers_fig,
-                        '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
 
             # Violin plots
 
             with violin_box:
                 marker_violin_plot = self._plot_violin_plots(title, values)
-                display(
-                    _create_export_button(
-                        marker_violin_plot,
-                        '4_visualize_marker_violin_plot'))
                 display(
                     HTML('<h3>{} Expression Across Clusters</h3>'.format(
                         title)))
@@ -1288,8 +1265,6 @@ class SingleCellAnalysis:
             )
 
             with volcano_box:
-                display(
-                    _create_export_button(volcano_plot, 'clusters_volcano_plot'))
                 prog_bar.close()
                 py.iplot(volcano_py_fig, show_link=False)
 
