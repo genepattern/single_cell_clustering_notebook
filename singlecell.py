@@ -1271,15 +1271,31 @@ class SingleCellAnalysis:
             table = table.astype('float')
             # display(table['logFC'])
 
-            volcano_plot = plt.figure(figsize=(7,6))
+            volcano_plot = plt.figure(figsize=(12,8))
             nlog10_pval = -np.log10(table['adj.pval'])
             plt.scatter(table['logFC'], nlog10_pval)
 
+            plt.xlabel("log2 fold change", fontsize=16)
+            plt.ylabel("-log10 p-value", fontsize=16)
+
+            plt.tick_params(axis='both', labelsize=14)
 
             plt.close()
 
             volcano_py_fig = tls.mpl_to_plotly(volcano_plot)
 
+            volcano_py_fig['data'].append(
+                dict(
+                    x=table['logFC'],
+                    y=nlog10_pval,
+                    type='scatter',
+                    text=table.index,
+                    mode='markers',
+                    marker=dict(
+                        color='rgb(0,0,255)'
+                    )
+                )
+            )
 
             with volcano_box:
                 display(
@@ -1870,6 +1886,39 @@ class SingleCellAnalysis:
             groups=[ident_1],
             reference=ident_2,
             use_raw=True,
+            n_genes=len(self.data.var_names),
+            test_type=test,
+            rankby_abs=False,
+            only_positive=False,
+            corr_method='benjamini-hochberg'
+        )
+
+        marker_names = [x[0] for x in self.data.uns['rank_genes_groups']['names']]
+        pvals = [x[0] for x in self.data.uns['rank_genes_groups']['pvals_adj']]
+        marker_scores = [x[0] for x in self.data.uns['rank_genes_groups']['logfoldchanges']]
+
+        results = pd.DataFrame(
+            [marker_names, pvals, marker_scores],
+            index=[
+                'Gene', 'adj.pval', 'logFC',
+            ]).T
+        results.set_index(['Gene'], inplace=True)
+
+        return results
+
+    """
+    def _find_markers(self, ident_1, ident_2, test):
+        # Sanitize input for scanpy method
+        ident_1 = str(ident_1)
+        ident_2 = str(ident_2)
+
+        # Perform test
+        sc.tl.rank_genes_groups(
+            self.data,
+            'louvain',
+            groups=[ident_1],
+            reference=ident_2,
+            use_raw=True,
             n_genes = len(self.data.var_names),
             test_type=test,
             rankby_abs=False)
@@ -1879,7 +1928,8 @@ class SingleCellAnalysis:
             x[0] for x in self.data.uns['rank_genes_groups']['names']
         ]
         marker_scores = [
-            x[0] for x in self.data.uns['rank_genes_groups']['scores']
+            #x[0] for x in self.data.uns['rank_genes_groups']['scores']
+            x[0] for x in self.data.uns['rank_genes_groups']['logfoldchanges']
         ]
 
         # Convert to p-values
@@ -1913,13 +1963,14 @@ class SingleCellAnalysis:
 
 
         # Compute log fold change for each gene
-        log_fc = list(mean_2 / mean_1)
-        # log_fc = ['%.2f' % v for v in log_fc]
-        # log_fc = [float(x) for x in log_fc]
-        # # Replace 'inf' with 0
-        # log_fc = [0 if e == float('inf') else e for e in log_fc]
-        ## Adding log2 on 2019-02-19
-        log_fc = [0 if e < np.finfo(np.float32).eps else np.log2(e) for e in log_fc]
+        #log_fc = list(mean_1 / mean_2)
+        ## log_fc = ['%.2f' % v for v in log_fc]
+        ## log_fc = [float(x) for x in log_fc]
+        ## # Replace 'inf' with 0
+        ## log_fc = [0 if e == float('inf') else e for e in log_fc]
+        ### Adding log2 on 2019-02-19
+        #log_fc = [0 if e < np.finfo(np.float32).eps else np.log2(e) for e in log_fc]
+        log_fc = marker_scores
 
         # Compute percent expressed in each group
         pct_1 = (df.loc[is_ident_1, marker_names] > 0
@@ -1948,27 +1999,27 @@ class SingleCellAnalysis:
             ]).T
         results.set_index(['Gene'], inplace=True)
         return results
-        """
-        table = TableDisplay(results)
-        for c in results.columns:
-            # flip for p-value
-            if c == results.columns[0]:
-                highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
-                    c,
-                    TableDisplayCellHighlighter.SINGLE_COLUMN,
-                    minColor='red',
-                    maxColor='white')
-            else:
-                highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
-                    c,
-                    TableDisplayCellHighlighter.SINGLE_COLUMN,
-                    minColor='white',
-                    maxColor='red')
+        
+        #table = TableDisplay(results)
+        #for c in results.columns:
+        #    # flip for p-value
+        #    if c == results.columns[0]:
+        #        highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
+        #            c,
+        #            TableDisplayCellHighlighter.SINGLE_COLUMN,
+        #            minColor='red',
+        #            maxColor='white')
+        #    else:
+        #        highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
+        #            c,
+        #            TableDisplayCellHighlighter.SINGLE_COLUMN,
+        #            minColor='white',
+        #            maxColor='red')
+        #
+        #    table.addCellHighlighter(highlighter)
 
-            table.addCellHighlighter(highlighter)
-
-        return table
-        """
+        #return table
+    """        
 
     def _find_top_markers(self, n_markers, test):
         sc.tl.rank_genes_groups(
