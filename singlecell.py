@@ -1036,10 +1036,10 @@ class SingleCellAnalysis:
         cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
-        heatmap_text = HTML('''
-        <h3>Visualize Top Markers</h3>
-        <p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
-        '''.format(_LINE_HEIGHT))
+        #heatmap_text = HTML('''
+        #<h3>Visualize Top Markers</h3>
+        #<p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
+        #'''.format(_LINE_HEIGHT))
         heatmap_n_markers = IntSlider(
             description="# markers", value=5, min=5, max=100, step=5)
         heatmap_test = Dropdown(
@@ -1049,9 +1049,11 @@ class SingleCellAnalysis:
         heatmap_plot_button = Button(description='Plot', button_style='info')
         heatmap_header_box = VBox()
         heatmap_header_box.children = [
-            heatmap_text, _info_message(
-                'Double-click the heatmap to zoom in and scroll for more detail.'
-            ), heatmap_n_markers, heatmap_test, heatmap_plot_button
+            #heatmap_text, 
+            #_info_message(
+            #    'Double-click the heatmap to zoom in and scroll for more detail.'
+            #), 
+            heatmap_n_markers, heatmap_test, heatmap_plot_button
         ]
 
         marker_heatmap_output = Output()
@@ -1090,16 +1092,19 @@ class SingleCellAnalysis:
         markers_plot_box = HBox()
         marker_box.children = [markers_header_box, markers_plot_box]
 
-        gene_input_description = HTML('''<h3>Visualize Marker Expression</h3>
-                                      <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
-                                         Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
-                                      '''.format(_LINE_HEIGHT))
+        #gene_input_description = HTML('''<h3>Visualize Marker Expression</h3>
+        #                              <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
+        #                                 Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
+        #                              '''.format(_LINE_HEIGHT))
         gene_input = Text("CD14")
         update_button = Button(
             description='Plot Expression', button_style='info')
         gene_input_box = HBox([gene_input, update_button])
 
-        markers_header_box.children = [gene_input_description, gene_input_box]
+        markers_header_box.children = [
+            #gene_input_description, 
+            gene_input_box
+        ]
 
         tsne_box = Output()
         violin_box = Output()
@@ -1234,21 +1239,6 @@ class SingleCellAnalysis:
             layout=Layout(width='90px'))
         cluster_table_button = Button(
             description='Explore', button_style='info')
-        cluster_table_note = HTML('''
-            <hr>
-            <h4>Output Table Info</h4>
-            <p style="font-size:14px; line-height:{};">
-            <ul style="list-style-position: inside; padding-left: 0; font-size:14px; line-height:{};">
-            <li><code>Gene</code>: the gene name<br></li>
-            <li><code>adj.pval</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
-            <li><code>logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
-            <li><code>%.expr.c#</code>: # of cells in the first group that express the gene<br></li>
-            <li><code>%.expr.c#</code>: # of cells in the second group that express the gene<br></li>
-            </ul>
-            <hr>
-            '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
-
-        cluster_param_header = HTML('<h4>Compare Clusters</h4>')
 
         volcano_box = Output(layout=Layout(
             display='flex',
@@ -1303,7 +1293,6 @@ class SingleCellAnalysis:
                 prog_bar.close()
                 py.iplot(volcano_py_fig, show_link=False)
 
-        display(cluster_param_header)
         display(cluster_param_box)
         display(param_test)
         display(cluster_table_button)
