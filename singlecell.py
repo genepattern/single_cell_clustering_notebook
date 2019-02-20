@@ -1272,7 +1272,7 @@ class SingleCellAnalysis:
             # display(table['logFC'])
 
             volcano_plot = plt.figure(figsize=(12,8))
-            nlog10_pval = -np.log10(table['adj.pval'])
+            nlog10_pval = [0.0 if p==0 else -np.log10(p) for p in table['adj.pval']]
             plt.scatter(table['logFC'], nlog10_pval)
 
             plt.xlabel("log2 fold change", fontsize=16)
