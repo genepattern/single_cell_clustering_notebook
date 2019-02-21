@@ -652,7 +652,6 @@ class SingleCellAnalysis:
         losing cytoplasmic RNA and retaining RNA enclosed in the mitochondria. An abnormally high number of genes
         or counts in a cell suggests a higher probability of a doublet.
         <br><br>
-        A standard upper threshold for removing outliers is roughly <i>3-4 standard deviations</i> above the mean.
         Inspect the quality metric distribution plots below to filter appropriately.
         </p>'''.format(measures.shape[0], len(self.data.var_names)))
 
