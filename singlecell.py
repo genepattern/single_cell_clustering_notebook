@@ -548,10 +548,10 @@ class SingleCellAnalysis:
 
         def plot_fig1(a, b, c):
             with sns.axes_style('ticks'):
-                fig1 = plt.figure(figsize=(14, 4))
+                fig1 = plt.figure(figsize=(18, 4))
                 gs = mpl.gridspec.GridSpec(2, 3, wspace=0.1, hspace=0.05, height_ratios=[20, 1])
 
-                selected_info = HBox(layout=Layout( width='812px', margin='0 0 0 10px'))
+                selected_info = HBox(layout=Layout( width='1012px', margin='0 0 0 10px'))
                 selected_info_children = []
                 is_selected = [True] * measures.shape[0]
 
@@ -595,14 +595,17 @@ class SingleCellAnalysis:
                     ax_1 = plt.subplot(gs[1, ax_col], sharex=ax)
                     sns.stripplot(values, ax=ax_1, color=color, orient='horizontal', size=3, jitter=True, alpha=0.3)
                     ax_1.set_xlim(0)
-                    ax_1.set_xlabel(measure_names[ax_1.get_xlabel()])
+                    ax_1.set_xlabel(measure_names[ax_1.get_xlabel()], fontsize=16)
+                    ax_1.tick_params(labelsize=14)
+                    if max(values) >= 1000:
+                        ax_1.tick_params(labelrotation=-45)
                     plt.setp(ax_1.get_xticklines(), visible=False)
                     plt.setp(ax_1.get_yticklines(), visible=False)
                     sns.despine(ax=ax_1, left=True, bottom=True)
 
                     # Update selected info
                     w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]),
-                                  layout=Layout(width='270px', padding='0', margin='0 0 0 25px'))
+                                  layout=Layout(width='370px', padding='0', margin='0 0px 0 25px'))
                     selected_info_children.append(w_info)
 
             plt.close()
@@ -614,7 +617,7 @@ class SingleCellAnalysis:
                                     layout=Layout(margin='0 0 0 200px'))
             display(is_selected_info, fig1, selected_info)
 
-        slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 0'))
+        slider_box = HBox(layout=Layout(width='1012px', margin='0 0 0 0'))
         slider_box_children = []
         for measure in measures:
             values = measures[measure]
@@ -624,7 +627,7 @@ class SingleCellAnalysis:
                                       step=0.01,
                                       continuous_update=False,
                                       readout=False,
-                                      layout=Layout(margin='0 20px 0 40px'))
+                                      layout=Layout(margin='0 10px 0 13px'))
             slider_box_children.append(slider)
 
         slider_box.children = slider_box_children
@@ -844,6 +847,7 @@ class SingleCellAnalysis:
         ax.get_xaxis().set_minor_locator(MaxNLocator(integer=True))
         ax.set_xlabel('Principal Component', size=16)
         ax.set_ylabel('% Variance Explained', size=16)
+        ax.tick_params(labelsize=14)
         plt.close()
 
         # plot interactive
@@ -1001,8 +1005,9 @@ class SingleCellAnalysis:
                 legend=True)
 
         plt.title('tSNE Visualization', size=16)
-        ax.set_xlabel(ax.get_xlabel(), size=12)
-        ax.set_ylabel(ax.get_ylabel(), size=12)
+        ax.set_xlabel(ax.get_xlabel(), size=16)
+        ax.set_ylabel(ax.get_ylabel(), size=16)
+        ax.tick_params(labelsize=14)
         plt.tight_layout()
         plt.close()
 
@@ -1010,7 +1015,7 @@ class SingleCellAnalysis:
         # Let plotly generate legend for plotly fig
         py_fig['layout']['annotations'] = []
         py_fig['layout']['showlegend'] = True
-        py_fig['layout']['legend'] = {'orientation': 'h'}
+        py_fig['layout']['legend'] = {'orientation': 'h', 'font': {'size': 16}}
 
         py_fig.update(data=[dict(name=c) for c in cluster_names])
 
@@ -1290,14 +1295,17 @@ class SingleCellAnalysis:
             },
             fit_reg=False,
             ax=ax)
-        ax.set_title(title)
+        ax.set_title(title, fontsize=20)
+        ax.set_xlabel(ax.get_xlabel(), fontsize=16)
+        ax.set_ylabel(ax.get_ylabel(), fontsize=16)
+        ax.tick_params(labelsize=14)
         plt.tight_layout()
         plt.close()
 
         return fig
 
     def _plot_violin_plots(self, gene, gene_values):
-        fig = plt.figure(figsize=(8, 5))
+        fig = plt.figure(figsize=(8, 6))
         ax = plt.gca()
         groups = self.data.obs['louvain']
         sns.stripplot(
@@ -1311,7 +1319,8 @@ class SingleCellAnalysis:
             palette=_CLUSTERS_CMAP,
             ax=ax)
         plt.legend(loc=(1, 0.1))
-        ax.set_xlabel('cluster')
+        ax.set_xlabel('cluster', fontsize=16)
+        ax.tick_params(labelsize=14)
         sns.despine()
         plt.close()
 
@@ -1441,10 +1450,10 @@ class SingleCellAnalysis:
         hm.set_yticklabels(counts.index, {'fontsize': '9'})
         hm.set_yticks([x + 0.5 for x in range(len(counts.index))])
 
-        hm.set_xlabel("Cells")
+        hm.set_xlabel("Cells", fontsize=16)
         hm.xaxis.set_label_coords(0.5, 1.1)
 
-        hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers))
+        hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers), fontsize=16)
         hm.yaxis.set_label_coords(-0.1, 0.5)
 
         plt.close()
