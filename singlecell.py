@@ -23,7 +23,9 @@ import subprocess
 import plotly.offline as py
 import plotly.tools as tls
 import scanpy.api as sc
-from beakerx import TableDisplay, TableDisplayCellHighlighter
+#from beakerx import TableDisplay, TableDisplayCellHighlighter
+
+#import qgrid
 
 py.init_notebook_mode()
 warnings.simplefilter('ignore', UserWarning)
@@ -411,7 +413,7 @@ class SingleCellAnalysis:
         mpl.rcParams['figure.dpi'] = 80
 
     # -------------------- SETUP ANALYSIS --------------------
-    def setup_analysis(self, csv_filepath=None, gene_x_cell=True, mtx_filepath=None, 
+    def setup_analysis(self, csv_filepath=None, gene_x_cell=True, mtx_filepath=None,
                         gene_filepath=None, bc_filepath=None):
         '''
         Load a raw count matrix for a single-cell RNA-seq experiment.
@@ -428,7 +430,7 @@ class SingleCellAnalysis:
         stat = _get_new_status("Preparing your files...")
         display(stat)
 
-        if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath, 
+        if not self._setup_analysis(csv_filepath, gene_x_cell, mtx_filepath,
                                     gene_filepath, bc_filepath, stat):
             return
 
@@ -502,7 +504,7 @@ class SingleCellAnalysis:
             if local_bc_filepath.endswith('.zip'):
                 _update_status(stat, "Unpacking "+local_bc_filepath+"...")
                 subprocess.call('unzip -o '+local_bc_filepath, shell=True)
-                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1]) 
+                local_bc_filepath = '.'.join(local_bc_filepath.split('.')[:-1])
 
             _update_status(stat, "Loading "+local_mtx_filepath+"...")
             data = sc.read(local_mtx_filepath, cache=False).transpose()
@@ -546,10 +548,10 @@ class SingleCellAnalysis:
 
         def plot_fig1(a, b, c):
             with sns.axes_style('ticks'):
-                fig1 = plt.figure(figsize=(14, 4))
+                fig1 = plt.figure(figsize=(18, 4))
                 gs = mpl.gridspec.GridSpec(2, 3, wspace=0.1, hspace=0.05, height_ratios=[20, 1])
 
-                selected_info = HBox(layout=Layout( width='812px', margin='0 0 0 10px'))
+                selected_info = HBox(layout=Layout( width='1012px', margin='0 0 0 10px'))
                 selected_info_children = []
                 is_selected = [True] * measures.shape[0]
 
@@ -593,28 +595,29 @@ class SingleCellAnalysis:
                     ax_1 = plt.subplot(gs[1, ax_col], sharex=ax)
                     sns.stripplot(values, ax=ax_1, color=color, orient='horizontal', size=3, jitter=True, alpha=0.3)
                     ax_1.set_xlim(0)
-                    ax_1.set_xlabel(measure_names[ax_1.get_xlabel()])
+                    ax_1.set_xlabel(measure_names[ax_1.get_xlabel()], fontsize=16)
+                    ax_1.tick_params(labelsize=14)
+                    if max(values) >= 1000:
+                        ax_1.tick_params(labelrotation=-45)
                     plt.setp(ax_1.get_xticklines(), visible=False)
                     plt.setp(ax_1.get_yticklines(), visible=False)
                     sns.despine(ax=ax_1, left=True, bottom=True)
 
                     # Update selected info
-                    w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]), 
-                                  layout=Layout(width='270px', padding='0', margin='0 0 0 25px'))
+                    w_info = HTML(value='<font size=4>Range: <code>{:.2f} - {:.2f}</code></font>'.format(w[0], w[1]),
+                                  layout=Layout(width='370px', padding='0', margin='0 0px 0 25px'))
                     selected_info_children.append(w_info)
 
             plt.close()
             selected_info.children = selected_info_children
             is_selected_info = HTML('<font size=4><code><b>{:.2f}% ({} / {})</b></code> of total cells will be selected.</font>'.format(sum(is_selected) /
-                                                                                                            len(is_selected) * 100, 
-                                                                                                            sum(is_selected), 
-                                                                                                            len(is_selected)), 
+                                                                                                            len(is_selected) * 100,
+                                                                                                            sum(is_selected),
+                                                                                                            len(is_selected)),
                                     layout=Layout(margin='0 0 0 200px'))
-            display(
-                _create_export_button(fig1,
-                                      '1_setup_analysis_single_qc_plots'), is_selected_info, fig1, selected_info)
+            display(is_selected_info, fig1, selected_info)
 
-        slider_box = HBox(layout=Layout(width='812px', margin='0 0 0 0'))
+        slider_box = HBox(layout=Layout(width='1012px', margin='0 0 0 0'))
         slider_box_children = []
         for measure in measures:
             values = measures[measure]
@@ -624,7 +627,7 @@ class SingleCellAnalysis:
                                       step=0.01,
                                       continuous_update=False,
                                       readout=False,
-                                      layout=Layout(margin='0 20px 0 40px'))
+                                      layout=Layout(margin='0 10px 0 13px'))
             slider_box_children.append(slider)
 
         slider_box.children = slider_box_children
@@ -633,7 +636,6 @@ class SingleCellAnalysis:
         fig1_out = Output()
         with fig1_out:
             interactive_fig1 = interactive_output(plot_fig1, dict(zip(['a', 'b', 'c'], slider_box.children)))
-            interactive_fig1.layout.height = '450px'
             display(interactive_fig1, slider_box)
 
         # Descriptive text
@@ -653,7 +655,6 @@ class SingleCellAnalysis:
         losing cytoplasmic RNA and retaining RNA enclosed in the mitochondria. An abnormally high number of genes
         or counts in a cell suggests a higher probability of a doublet.
         <br><br>
-        A standard upper threshold for removing outliers is roughly <i>3-4 standard deviations</i> above the mean.
         Inspect the quality metric distribution plots below to filter appropriately.
         </p>'''.format(measures.shape[0], len(self.data.var_names)))
 
@@ -818,9 +819,6 @@ class SingleCellAnalysis:
         display(output_div)
         display(_info_message('Hover over the plot to interact.'))
         pca_fig, pca_py_fig = self._plot_pca()
-        display(
-            _create_export_button(
-                pca_fig, '2_preprocess_counts_pca_variance_ratio_plot'))
         pca_plot_box = Output(layout=Layout(
             display='flex',
             align_items='center',
@@ -833,7 +831,8 @@ class SingleCellAnalysis:
     def _plot_pca(self):
         # mpl figure
         fig_elbow_plot = plt.figure(figsize=(7, 6))
-        pc_var = self.data.uns['pca_variance_ratio']
+        #pc_var = self.data.uns['pca_variance_ratio']
+        pc_var = self.data.uns['pca']['variance_ratio']
         pc_var = pc_var[:min(len(pc_var), 30)]
 
         # Calculate percent variance explained
@@ -848,6 +847,7 @@ class SingleCellAnalysis:
         ax.get_xaxis().set_minor_locator(MaxNLocator(integer=True))
         ax.set_xlabel('Principal Component', size=16)
         ax.set_ylabel('% Variance Explained', size=16)
+        ax.tick_params(labelsize=14)
         plt.close()
 
         # plot interactive
@@ -918,9 +918,6 @@ class SingleCellAnalysis:
                                perp_slider.value)
                 tsne_fig, py_tsne_fig = self._plot_tsne(figsize=(10, 9))
 
-                display(
-                    _create_export_button(
-                        tsne_fig, '3_cluster_cells_tsne_plot'))
                 py.iplot(py_tsne_fig, show_link=False)
 
                 # close progress bar
@@ -967,17 +964,19 @@ class SingleCellAnalysis:
             perplexity=perplexity,
             learning_rate=1000,
             n_jobs=8)
+        sc.pp.neighbors(
+            self.data,
+            n_neighbors=10)
         sc.tl.louvain(
             self.data,
-            n_neighbors=10,
             resolution=resolution,
-            recompute_graph=True)
+            )
 
-        self.data.obs['louvain_groups']
+        self.data.obs['louvain']
 
     def _plot_tsne(self, figsize):
         # Clusters
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         num_clusters = len(cluster_names)
 
@@ -999,15 +998,16 @@ class SingleCellAnalysis:
                 x='tSNE_1',
                 y='tSNE_2',
                 kind='scatter',
-                c=colors[c],
+                c=[colors[c]],
                 label=c,
                 alpha=0.7,
                 ax=ax,
                 legend=True)
 
         plt.title('tSNE Visualization', size=16)
-        ax.set_xlabel(ax.get_xlabel(), size=12)
-        ax.set_ylabel(ax.get_ylabel(), size=12)
+        ax.set_xlabel(ax.get_xlabel(), size=16)
+        ax.set_ylabel(ax.get_ylabel(), size=16)
+        ax.tick_params(labelsize=14)
         plt.tight_layout()
         plt.close()
 
@@ -1015,7 +1015,7 @@ class SingleCellAnalysis:
         # Let plotly generate legend for plotly fig
         py_fig['layout']['annotations'] = []
         py_fig['layout']['showlegend'] = True
-        py_fig['layout']['legend'] = {'orientation': 'h'}
+        py_fig['layout']['legend'] = {'orientation': 'h', 'font': {'size': 16}}
 
         py_fig.update(data=[dict(name=c) for c in cluster_names])
 
@@ -1023,109 +1023,81 @@ class SingleCellAnalysis:
 
     # -------------------- MARKER ANALYSIS --------------------
 
-    def visualize_markers(self):
-        # Hide FutureWarnings.
+    def visualize_top_markers(self):
         warnings.simplefilter('ignore',
-                              FutureWarning) if self.verbose else None
+                                FutureWarning) if self.verbose else None
 
-        # Commonly used data
-        cell_clusters = self.data.obs['louvain_groups'].astype(int)
+        ## Commonly used data
+        cell_clusters = self.data.obs['louvain'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
-
-        # Initialize output widgets here so they are in scope
-        marker_plot_tab_1_output = Output(layout=Layout(
-            height='600px',
-            display='flex',
-            justify_content='flex-start',
-            align_items='center'))
-        marker_plot_tab_2_output = Output(layout=Layout(
-            height='600px',
-            display='flex',
-            justify_content='flex-start',
-            align_items='center'))
-        violin_plot_output = Output(layout=Layout(
-            display='flex',
-            justify_content='center',
-            align_items='center',
-            height='425px',
-            width='100%'))
-        marker_table_output = Output(layout=Layout(
-            display='flex',
-            justify_content='flex-start',
-            align_items='flex-start',
-            height='800px',
-            width='100%',
-            padding='0',
-            overflow_y='auto'))
-        marker_heatmap_output = Output(
-            style='border: 1px solid green',
-            layout=Layout(
-                display='flex',
-                justify_content='flex-start',
-                align_items='flex-start',
-                height='1000px',
-                width='100%',
-                margin='0',
-                overflow_x='auto',
-                overflow_y='auto'))
-
-        # Create main container
-        main_box = Tab(layout=Layout(
-            padding='0 12px', flex='1', min_width='500px'))
-
-        # t-SNE marker plot container
-        main_header_box = VBox()
-        marker_plot_tab = Tab(
-            [marker_plot_tab_1_output, marker_plot_tab_2_output])
-        marker_plot_tab.set_title(0, 'Marker(s) Expression')
-        marker_plot_tab.set_title(1, 'Clusters Reference')
-        marker_plot_box = VBox(
-            [main_header_box, marker_plot_tab, violin_plot_output])
-
-        # Top markers heatmap container
+        #heatmap_text = HTML('''
+        #<h3>Visualize Top Markers</h3>
+        #<p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
+        #'''.format(_LINE_HEIGHT))
+        heatmap_n_markers = IntSlider(
+            description="# markers", value=5, min=5, max=100, step=5)
+        heatmap_test = Dropdown(
+            description='test',
+            options=['wilcoxon', 't-test'],
+            value='wilcoxon')
+        heatmap_plot_button = Button(description='Plot', button_style='info')
         heatmap_header_box = VBox()
+        heatmap_header_box.children = [
+            #heatmap_text, 
+            #_info_message(
+            #    'Double-click the heatmap to zoom in and scroll for more detail.'
+            #), 
+            heatmap_n_markers, heatmap_test, heatmap_plot_button
+        ]
+
+        marker_heatmap_output = Output()
+
+        def plot_heatmap(button=None):
+            marker_heatmap_output.clear_output()
+            top_marker_progress_bar = _create_progress_bar()
+            with marker_heatmap_output:
+                display(top_marker_progress_bar)
+
+                expr, group_labels = self._find_top_markers(
+                    heatmap_n_markers.value, heatmap_test.value)
+                fig = self._plot_top_markers_heatmap(expr, group_labels)
+
+                display(fig)
+                top_marker_progress_bar.close()
+
+        heatmap_plot_button.on_click(plot_heatmap)
+
         heatmap_box = VBox([heatmap_header_box, marker_heatmap_output])
 
-        # Populate tabs
-        main_box.children = [marker_plot_box, heatmap_box]
+        display(heatmap_box)
 
-        # TODO name tabs
-        main_box.set_title(0, 'tSNE Plot')
-        main_box.set_title(1, 'Heatmap')
-        # Table
-        explore_markers_box = Accordion(layout=Layout(
-            max_width='425px', orientation='vertical'))
-        cluster_table_header_box = VBox()
-        explore_markers_box.children = [
-            VBox([cluster_table_header_box, marker_table_output])
-        ]
-        explore_markers_box.set_title(0, 'Explore Markers')
+        plot_heatmap()
 
-        # ------------------------- Output Placeholders -------------------------
-        with marker_plot_tab_1_output:
-            display(_create_placeholder('plot'))
-        with marker_plot_tab_2_output:
-            display(_create_placeholder('plot'))
+    def visualize_marker_expression(self):
+        marker_box = VBox() #box that will contain tSNEs and violins
+        markers_header_box = VBox() #box for the header description and button
+        ## code for making the header and button
+        markers_plot_box = HBox()
+        marker_box.children = [markers_header_box, markers_plot_box]
 
-        with violin_plot_output:
-            display(_create_placeholder('plot'))
-        with marker_table_output:
-            display(_create_placeholder('table'))
-        with marker_heatmap_output:
-            display(_create_placeholder('plot'))
-
-        # Fill container elements
-        # ------------------------- Main header -------------------------
-        gene_input_description = HTML('''<h3>Visualize Markers</h3>
-                                      <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
-                                         Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
-                                      '''.format(_LINE_HEIGHT))
+        #gene_input_description = HTML('''<h3>Visualize Marker Expression</h3>
+        #                              <p style="font-size:14px; line-height:{};">Visualize the expression of gene(s) in each cell projected on the t-SNE map and the distribution across identified clusters.
+        #                                 Provide any number of genes. If more than one gene is provided, the average expression of those genes will be shown.</p>
+        #                              '''.format(_LINE_HEIGHT))
         gene_input = Text("CD14")
         update_button = Button(
             description='Plot Expression', button_style='info')
         gene_input_box = HBox([gene_input, update_button])
-        main_header_box.children = [gene_input_description, gene_input_box]
+
+        markers_header_box.children = [
+            #gene_input_description, 
+            gene_input_box
+        ]
+
+        tsne_box = Output()
+        violin_box = Output()
+        markers_plot_box.children = [tsne_box, violin_box]
 
         def check_gene_input(t):
             '''Don't allow submission of empty input.'''
@@ -1136,6 +1108,9 @@ class SingleCellAnalysis:
 
         def update_query_plots(b):
             # Format gene list. Split by comma, remove whitespace, then split by whitespace.
+            tsne_box.clear_output()
+            violin_box.clear_output()
+
             gene_list = str(gene_input.value).upper()
             gene_list = gene_list.split(',')
             gene_list = [s.split(' ') for s in gene_list]
@@ -1152,8 +1127,8 @@ class SingleCellAnalysis:
                     gene_locs.append(self.data.raw.var_names.get_loc(gene))
                 else:
                     # Gene not found
-                    marker_plot_tab_1_output.clear_output()
-                    with marker_plot_tab_1_output:
+                    tsne_box.clear_output()
+                    with tsne_box:
                         display(
                             _warning_message(
                                 'The gene <code>{}</code> was not found. Try again.'.
@@ -1181,12 +1156,11 @@ class SingleCellAnalysis:
 
             # Marker tSNE plot
             tab1_progress_bar = _create_progress_bar()
-            marker_plot_tab_1_output.clear_output()
-            with marker_plot_tab_1_output:
+            with tsne_box:
 
                 display(tab1_progress_bar)
 
-                
+
                 # generate tSNE markers plot
                 tsne_markers_fig = self._plot_tsne_markers(title, values, (6, 6))
                 tsne_markers_py_fig = tls.mpl_to_plotly(tsne_markers_fig)
@@ -1194,37 +1168,12 @@ class SingleCellAnalysis:
                 # Hide progress bar
                 tab1_progress_bar.close()
 
-                display(
-                    _create_export_button(
-                        tsne_markers_fig,
-                        '4_visualize_marker_tsne_plot'))
                 py.iplot(tsne_markers_py_fig, show_link=False)
-                
-
-            marker_plot_tab_2_output.clear_output()
-            tab2_progress_bar = _create_progress_bar()
-            with marker_plot_tab_2_output:
-                display(tab2_progress_bar)
-
-                # generate tSNE clusters plot
-                tsne_fig, tsne_py_fig = self._plot_tsne(figsize=(6.5, 7))
-
-                display(
-                    _create_export_button(
-                        tsne_fig, '4_visualize_analysis_tsne_plot'))
-                py.iplot(tsne_py_fig, show_link=False)
-
-                # Hide progress bar
-                tab2_progress_bar.close()
 
             # Violin plots
-            violin_plot_output.clear_output()
-            with violin_plot_output:
+
+            with violin_box:
                 marker_violin_plot = self._plot_violin_plots(title, values)
-                display(
-                    _create_export_button(
-                        marker_violin_plot,
-                        '4_visualize_marker_violin_plot'))
                 display(
                     HTML('<h3>{} Expression Across Clusters</h3>'.format(
                         title)))
@@ -1234,47 +1183,20 @@ class SingleCellAnalysis:
         gene_input.on_submit(update_query_plots)
         update_button.on_click(update_query_plots)
 
-        # ------------------------- Heatmap -------------------------
+        display(marker_box)
 
-        heatmap_text = HTML('''
-        <h3>Visualize Top Markers</h3>
-        <p style="font-size:14px; line-height:{};">Show the top markers for each cluster as a heatmap.</p>
-        '''.format(_LINE_HEIGHT))
-        heatmap_n_markers = IntSlider(
-            description="# markers", value=10, min=5, max=100, step=5)
-        heatmap_test = Dropdown(
-            description='test',
-            options=['wilcoxon', 't-test'],
-            value='wilcoxon')
-        heatmap_plot_button = Button(description='Plot', button_style='info')
-        heatmap_header_box.children = [
-            heatmap_text, _info_message(
-                'Double-click the heatmap to zoom in and scroll for more detail.'
-            ), heatmap_n_markers, heatmap_test, heatmap_plot_button
-        ]
+        update_query_plots("CD14")
 
-        def plot_heatmap(button=None):
-            marker_heatmap_output.clear_output()
-            top_marker_progress_bar = _create_progress_bar()
-            with marker_heatmap_output:
-                display(top_marker_progress_bar)
 
-                expr, group_labels = self._find_top_markers(
-                    heatmap_n_markers.value, heatmap_test.value)
-                fig = self._plot_top_markers_heatmap(expr, group_labels)
+    def compare_clusters(self):
+        # Hide FutureWarnings
+        warnings.simplefilter('ignore',
+                                FutureWarning) if self.verbose else None
+        # Commonly used data
+        cell_clusters = self.data.obs['louvain'].astype(int)
+        cluster_names = np.unique(cell_clusters).tolist()
+        cluster_names.sort(key=int)
 
-                display(
-                    _create_export_button(
-                        fig,
-                        '4_visualize_top_markers_heatmap_plot'
-                    ))
-
-                display(fig)
-                top_marker_progress_bar.close()
-
-        heatmap_plot_button.on_click(plot_heatmap)
-
-        # ------------------------- Cluster Table -------------------------
         cluster_table_header = HTML('''
         <p style="font-size:14px; line-height:{};">Test for differentially expressed genes between subpopulations of cells.</p>'''
                                     .format(_LINE_HEIGHT))
@@ -1298,74 +1220,65 @@ class SingleCellAnalysis:
             layout=Layout(width='90px'))
         cluster_table_button = Button(
             description='Explore', button_style='info')
-        cluster_table_note = HTML('''
-            <hr>
-            <h4>Output Table Info</h4>
-            <p style="font-size:14px; line-height:{};">
-            <ul style="list-style-position: inside; padding-left: 0; font-size:14px; line-height:{};">
-            <li><code>Gene</code>: the gene name<br></li>
-            <li><code>adj.pval</code>: Benjamini & Hochberg procedure adjusted p-values<br></li>
-            <li><code>logFC</code>: log fold-change of average relative expression of gene in the first group compared to the second group<br></li>
-            <li><code>%.expr.c#</code>: # of cells in the first group that express the gene<br></li>
-            <li><code>%.expr.c#</code>: # of cells in the second group that express the gene<br></li>
-            </ul>
-            <hr>
-            '''.format(_LINE_HEIGHT, _LINE_HEIGHT))
 
-        cluster_param_header = HTML('<h4>Compare Clusters</h4>')
+        volcano_box = Output(layout=Layout(
+            display='flex',
+            align_items='center',
+            justify_content='center',
+            margin='0 0 0 -50px'))
 
-        def update_cluster_table(b=None):
+        def _update_volcano_plot(b=None):
+            
+            volcano_box.clear_output()
+            prog_bar = _create_progress_bar()
+            with volcano_box:
+                display(prog_bar)
+
             ident_1 = param_c_1.value
             ident_2 = param_c_2.value
             test = param_test.value
 
-            marker_table_output.clear_output()
-            marker_table_progress_bar = _create_progress_bar()
-            with marker_table_output:
-                # Validate input
-                if (ident_1 == 'cluster') or (ident_2 == 'cluster'):
-                    display(
-                        HTML('Please choose 2 different clusters to compare.'))
-                    return
-                elif ident_1 == ident_2:
-                    display(
-                        HTML(
-                            'Cannot compare cluster to itself. Choose 2 different clusters to compare.'
-                        ))
-                    return
-                if test == 'test method':
-                    display(HTML('Please choose a test method.'))
-                    return
+            table = self._find_markers(ident_1, ident_2, test)
+            table = table.astype('float')
+            # display(table['logFC'])
 
-                display(marker_table_progress_bar)
+            volcano_plot = plt.figure(figsize=(12,8))
+            nlog10_pval = [0.0 if p==0 else -np.log10(p) for p in table['adj.pval']]
+            plt.scatter(table['logFC'], nlog10_pval)
 
-                # Find markers for specified
-                table = self._find_markers(ident_1, ident_2, test)
-                display(table)
-                marker_table_progress_bar.close()
+            plt.xlabel("log2 fold change", fontsize=16)
+            plt.ylabel("-log10 p-value", fontsize=16)
 
-        cluster_table_button.on_click(update_cluster_table)
+            plt.tick_params(axis='both', labelsize=14)
 
-        cluster_table_header_box.children = [
-            _info_message('Hide/show this panel by clicking the <b>Explore Markers</b> header above.'),
-            cluster_table_header, cluster_table_note, _info_message(
-                'Export the table using the menu, which can be accessed in the top left hand corner of the "Gene" column.'
-            ), cluster_param_header, cluster_param_box, param_test, cluster_table_button
-        ]
+            plt.close()
 
-        # ------------------------- Main Table -------------------------
+            volcano_py_fig = tls.mpl_to_plotly(volcano_plot)
 
-        # Configure layout
-        top_box = HBox([main_box, explore_markers_box])
-        display(top_box)
-        update_query_plots("CD14")
-        plot_heatmap()
-        update_cluster_table()
+            volcano_py_fig['data'].append(
+                dict(
+                    x=table['logFC'],
+                    y=nlog10_pval,
+                    type='scatter',
+                    text=table.index,
+                    mode='markers',
+                    marker=dict(
+                        color='rgb(0,0,255)'
+                    )
+                )
+            )
 
+            with volcano_box:
+                prog_bar.close()
+                py.iplot(volcano_py_fig, show_link=False)
 
-        # Revert to default settings to show FutureWarnings.
-        warnings.simplefilter('default',
-                              FutureWarning) if self.verbose else None
+        display(cluster_param_box)
+        display(param_test)
+        display(cluster_table_button)
+        display(volcano_box)
+        cluster_table_button.on_click(_update_volcano_plot)
+
+        _update_volcano_plot()
 
     def _plot_tsne_markers(self, title, gene_values, figsize):
         fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -1382,16 +1295,19 @@ class SingleCellAnalysis:
             },
             fit_reg=False,
             ax=ax)
-        ax.set_title(title)
+        ax.set_title(title, fontsize=20)
+        ax.set_xlabel(ax.get_xlabel(), fontsize=16)
+        ax.set_ylabel(ax.get_ylabel(), fontsize=16)
+        ax.tick_params(labelsize=14)
         plt.tight_layout()
         plt.close()
 
         return fig
 
     def _plot_violin_plots(self, gene, gene_values):
-        fig = plt.figure(figsize=(8, 5))
+        fig = plt.figure(figsize=(8, 6))
         ax = plt.gca()
-        groups = self.data.obs['louvain_groups']
+        groups = self.data.obs['louvain']
         sns.stripplot(
             x=groups, y=gene_values, size=3, jitter=True, color='black', ax=ax)
         sns.violinplot(
@@ -1403,7 +1319,8 @@ class SingleCellAnalysis:
             palette=_CLUSTERS_CMAP,
             ax=ax)
         plt.legend(loc=(1, 0.1))
-        ax.set_xlabel('cluster')
+        ax.set_xlabel('cluster', fontsize=16)
+        ax.tick_params(labelsize=14)
         sns.despine()
         plt.close()
 
@@ -1417,115 +1334,41 @@ class SingleCellAnalysis:
         # Perform test
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain_groups',
+            'louvain',
             groups=[ident_1],
             reference=ident_2,
             use_raw=True,
-            n_genes=min(100, len(self.data.var_names)),
-            test_type=test)
+            n_genes=len(self.data.var_names),
+            test_type=test,
+            rankby_abs=False,
+            only_positive=False,
+            corr_method='benjamini-hochberg'
+        )
 
-        # Format results
-        marker_names = [
-            x[0] for x in self.data.uns['rank_genes_groups_gene_names']
-        ]
-        marker_scores = [
-            x[0] for x in self.data.uns['rank_genes_groups_gene_scores']
-        ]
+        marker_names = [x[0] for x in self.data.uns['rank_genes_groups']['names']]
+        pvals = [x[0] for x in self.data.uns['rank_genes_groups']['pvals_adj']]
+        marker_scores = [x[0] for x in self.data.uns['rank_genes_groups']['logfoldchanges']]
 
-        # Convert to p-values
-        marker_scores = st.norm.sf(np.abs(marker_scores))
-        marker_scores = multipletests(
-            marker_scores, method='fdr_bh')[1].tolist()
-        marker_scores = ['%.3G' % x for x in marker_scores]
-
-        clusters = self.data.obs['louvain_groups'].astype(int)
-        is_ident_1 = (clusters == int(ident_1))
-        if ident_2 is not 'rest':
-            is_ident_2 = (clusters == int(ident_2))
-
-        # gene_locs = [self.data.raw.var_names.get_loc(gene) for gene in marker_names]
-        if type(self.data.raw.X) not in [np.array, np.ndarray]:
-            df = pd.DataFrame(
-                self.data.raw.X.toarray(),
-                index=self.data.obs_names,
-                columns=self.data.raw.var_names)
-        else:
-            df = pd.DataFrame(
-                self.data.raw.X,
-                index=self.data.obs_names,
-                columns=self.data.raw.var_names)
-
-        # Determine mean of each gene across each group
-        mean_1 = np.mean(df.loc[is_ident_1, marker_names])
-        if ident_2 == 'rest':
-            mean_2 = np.mean(df.loc[~is_ident_1, marker_names])
-        else:
-            mean_2 = np.mean(df.loc[is_ident_2, marker_names])
-
-        # Compute log fold change for each gene
-        log_fc = list(mean_1 / mean_2)
-        log_fc = ['%.2f' % v for v in log_fc]
-        log_fc = [float(x) for x in log_fc]
-        # Replace 'inf' with 0
-        log_fc = [0 if e == float('inf') else e for e in log_fc]
-
-        # Compute percent expressed in each group
-        pct_1 = (df.loc[is_ident_1, marker_names] > 0
-                 ).sum() / is_ident_1.sum() * 100
-        if ident_2 == 'rest':
-            pct_2 = (df.loc[~is_ident_1, marker_names] > 0).sum() / (
-                len(self.data.obs_names) - is_ident_1.sum()) * 100
-        else:
-            pct_2 = (df.loc[is_ident_2, marker_names] > 0
-                     ).sum() / is_ident_2.sum() * 100
-
-        # Format to 2 decimal places
-        pct_1 = ['%.2f' % e for e in pct_1]
-        pct_2 = ['%.2f' % e for e in pct_2]
-
-        # Return as interactive table
-        if ident_2 == 'rest':
-            pct_expr_2_prefix = '%.expr.'
-        else:
-            pct_expr_2_prefix = '%.expr.c'
         results = pd.DataFrame(
-            [marker_names, marker_scores, log_fc, pct_1, pct_2],
+            [marker_names, pvals, marker_scores],
             index=[
-                'Gene', 'adj.pval', 'logFC', '%.expr.c{}'.format(ident_1),
-                '{}{}'.format(pct_expr_2_prefix, ident_2)
+                'Gene', 'adj.pval', 'logFC',
             ]).T
         results.set_index(['Gene'], inplace=True)
-        table = TableDisplay(results)
-        for c in results.columns:
-            # flip for p-value
-            if c == results.columns[0]:
-                highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
-                    c,
-                    TableDisplayCellHighlighter.SINGLE_COLUMN,
-                    minColor='red',
-                    maxColor='white')
-            else:
-                highlighter = TableDisplayCellHighlighter.getHeatmapHighlighter(
-                    c,
-                    TableDisplayCellHighlighter.SINGLE_COLUMN,
-                    minColor='white',
-                    maxColor='red')
 
-            table.addCellHighlighter(highlighter)
-
-        return table
+        return results
 
     def _find_top_markers(self, n_markers, test):
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain_groups',
+            'louvain',
             use_raw=True,
             n_genes=min(n_markers, len(self.data.var_names)),
             test_type=test)
 
         # genes sorted by top (rows), clusters (columns)
         markers_per_cluster = pd.DataFrame(
-            self.data.uns['rank_genes_groups_gene_names'])
+            self.data.uns['rank_genes_groups']['names'])
         markers = np.array([
             markers_per_cluster[c].values.tolist()
             for c in markers_per_cluster.columns
@@ -1533,7 +1376,7 @@ class SingleCellAnalysis:
         marker_locs = [self.data.raw.var_names.get_loc(m) for m in markers]
 
         # clusters
-        clusters = self.data.obs['louvain_groups'].astype(int)
+        clusters = self.data.obs['louvain'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
@@ -1562,7 +1405,8 @@ class SingleCellAnalysis:
         return expr, group_labels
 
     def _plot_top_markers_heatmap(self, counts, group_labels):
-        clusters = self.data.obs['louvain_groups'].astype(int)
+        #clusters = self.data.obs['louvain_groups'].astype(int)
+        clusters = self.data.obs['louvain'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
@@ -1581,7 +1425,7 @@ class SingleCellAnalysis:
         gene_labels = [label % 2 for label in gene_labels]
         gene_colors = pd.Series(gene_labels).map(cmap_binary).tolist()
 
-        dim = 12 * num_markers / 10
+        dim = max(12, 12*num_markers/10)
         # Heatmap
         g = sns.clustermap(
             counts,
@@ -1606,10 +1450,10 @@ class SingleCellAnalysis:
         hm.set_yticklabels(counts.index, {'fontsize': '9'})
         hm.set_yticks([x + 0.5 for x in range(len(counts.index))])
 
-        hm.set_xlabel("Cells")
+        hm.set_xlabel("Cells", fontsize=16)
         hm.xaxis.set_label_coords(0.5, 1.1)
 
-        hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers))
+        hm.set_ylabel("Top {} Genes of each Cluster".format(num_markers), fontsize=16)
         hm.yaxis.set_label_coords(-0.1, 0.5)
 
         plt.close()
