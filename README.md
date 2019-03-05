@@ -1,7 +1,7 @@
 # Single-cell RNA-seq Clustering Analysis Notebook
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1326657.svg)](https://doi.org/10.5281/zenodo.1326656)
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/genepattern/single_cell_clustering_notebook/master?urlpath=notebooks%2FSingle%20Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/genepattern/single_cell_clustering_notebook/master?urlpath=notebooks%2FSingle-Cell%20RNA-seq%20Clustering%20Analysis.ipynb)
 
 Try out the notebook by launching the binder above. It may be slow to launch while it installs package dependencies.
 
