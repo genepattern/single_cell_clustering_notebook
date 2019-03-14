@@ -789,7 +789,23 @@ class SingleCellAnalysis:
 
         # Calculate PCA
         _update_status(stat, "Performing principle component analysis (PCA)...")
-        sc.tl.pca(self.data, n_comps=30)
+        try:
+            sc.tl.pca(self.data, n_comps=30)
+        except ValueError:
+            print("Less than 30 features available for PCA, trying 25")
+            try:
+                 sc.tl.pca(self.data, n_comps=25)
+            except ValueError:
+                print("Less than 25 features available for PCA, trying 20")
+                try:
+                    sc.tl.pca(self.data, n_comps=20)
+                except ValueError:
+                    print("Less than 20 features available for PCA, trying 10")
+                    try:
+                        sc.tl.pca(self.data, n_comps=10)
+                    except ValueError:
+                        print("Less than 10 features available for PCA, trying 5")
+                        sc.tl.pca(self.data, n_comps=10)
 
         # Successfully ran
         return True
@@ -1044,10 +1060,10 @@ class SingleCellAnalysis:
         heatmap_plot_button = Button(description='Plot', button_style='info')
         heatmap_header_box = VBox()
         heatmap_header_box.children = [
-            #heatmap_text, 
+            #heatmap_text,
             #_info_message(
             #    'Double-click the heatmap to zoom in and scroll for more detail.'
-            #), 
+            #),
             heatmap_n_markers, heatmap_test, heatmap_plot_button
         ]
 
@@ -1091,7 +1107,7 @@ class SingleCellAnalysis:
         gene_input_box = HBox([gene_input, update_button])
 
         markers_header_box.children = [
-            #gene_input_description, 
+            #gene_input_description,
             gene_input_box
         ]
 
@@ -1228,7 +1244,7 @@ class SingleCellAnalysis:
             margin='0 0 0 -50px'))
 
         def _update_volcano_plot(b=None):
-            
+
             volcano_box.clear_output()
             prog_bar = _create_progress_bar()
             with volcano_box:
