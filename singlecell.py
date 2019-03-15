@@ -733,11 +733,8 @@ class SingleCellAnalysis:
 
         _update_status(stat, "Filtering cells by #genes and #counts...")
 
-
         # Gene filtering
         sc.pp.filter_genes(self.data, min_cells=min_n_cells)
-
-
 
         # Filter cells within a range of # of genes and # of counts.
         sc.pp.filter_cells(self.data, min_genes=n_genes_range[0])
@@ -745,15 +742,14 @@ class SingleCellAnalysis:
         sc.pp.filter_cells(self.data, min_counts=n_counts_range[0])
         sc.pp.filter_cells(self.data, max_counts=n_counts_range[1])
 
-
         # Remove cells that have too many mitochondrial genes expressed.
         _update_status(stat, "Removing cells high in mitochondrial genes...")
         percent_mito_filter = (
             self.data.obs['percent_mito'] * 100 >= percent_mito_range[0]) & (
                 self.data.obs['percent_mito'] * 100 < percent_mito_range[1])
+
         if not percent_mito_filter.any():
             self.data = self.data[percent_mito_filter, :]
-
 
         # Set the `.raw` attribute of AnnData object to the logarithmized raw gene expression for later use in
         # differential testing and visualizations of gene expression. This simply freezes the state of the data stored
@@ -892,7 +888,8 @@ class SingleCellAnalysis:
         # Default parameter values
         pcs = 10
         resolution = 1.2
-        perplexity = 30
+        #perplexity = 30
+        perplexity = min(30, len(self.data.obs_names)-1)
 
         # Parameter slider widgets
         pc_slider = SelectionSlider(
