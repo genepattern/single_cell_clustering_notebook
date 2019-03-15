@@ -733,11 +733,8 @@ class SingleCellAnalysis:
 
         _update_status(stat, "Filtering cells by #genes and #counts...")
 
-
         # Gene filtering
         sc.pp.filter_genes(self.data, min_cells=min_n_cells)
-
-
 
         # Filter cells within a range of # of genes and # of counts.
         sc.pp.filter_cells(self.data, min_genes=n_genes_range[0])
@@ -745,15 +742,14 @@ class SingleCellAnalysis:
         sc.pp.filter_cells(self.data, min_counts=n_counts_range[0])
         sc.pp.filter_cells(self.data, max_counts=n_counts_range[1])
 
-
         # Remove cells that have too many mitochondrial genes expressed.
         _update_status(stat, "Removing cells high in mitochondrial genes...")
         percent_mito_filter = (
             self.data.obs['percent_mito'] * 100 >= percent_mito_range[0]) & (
                 self.data.obs['percent_mito'] * 100 < percent_mito_range[1])
+
         if not percent_mito_filter.any():
             self.data = self.data[percent_mito_filter, :]
-
 
         # Set the `.raw` attribute of AnnData object to the logarithmized raw gene expression for later use in
         # differential testing and visualizations of gene expression. This simply freezes the state of the data stored
@@ -789,7 +785,23 @@ class SingleCellAnalysis:
 
         # Calculate PCA
         _update_status(stat, "Performing principle component analysis (PCA)...")
-        sc.tl.pca(self.data, n_comps=30)
+        try:
+            sc.tl.pca(self.data, n_comps=30)
+        except ValueError:
+            print("Less than 30 features available for PCA, trying 25")
+            try:
+                 sc.tl.pca(self.data, n_comps=25)
+            except ValueError:
+                print("Less than 25 features available for PCA, trying 20")
+                try:
+                    sc.tl.pca(self.data, n_comps=20)
+                except ValueError:
+                    print("Less than 20 features available for PCA, trying 10")
+                    try:
+                        sc.tl.pca(self.data, n_comps=10)
+                    except ValueError:
+                        print("Less than 10 features available for PCA, trying 5")
+                        sc.tl.pca(self.data, n_comps=10)
 
         # Successfully ran
         return True
@@ -876,7 +888,8 @@ class SingleCellAnalysis:
         # Default parameter values
         pcs = 10
         resolution = 1.2
-        perplexity = 30
+        #perplexity = 30
+        perplexity = min(30, len(self.data.obs_names)-1)
 
         # Parameter slider widgets
         pc_slider = SelectionSlider(
@@ -1044,10 +1057,10 @@ class SingleCellAnalysis:
         heatmap_plot_button = Button(description='Plot', button_style='info')
         heatmap_header_box = VBox()
         heatmap_header_box.children = [
-            #heatmap_text, 
+            #heatmap_text,
             #_info_message(
             #    'Double-click the heatmap to zoom in and scroll for more detail.'
-            #), 
+            #),
             heatmap_n_markers, heatmap_test, heatmap_plot_button
         ]
 
@@ -1091,7 +1104,7 @@ class SingleCellAnalysis:
         gene_input_box = HBox([gene_input, update_button])
 
         markers_header_box.children = [
-            #gene_input_description, 
+            #gene_input_description,
             gene_input_box
         ]
 
@@ -1228,7 +1241,7 @@ class SingleCellAnalysis:
             margin='0 0 0 -50px'))
 
         def _update_volcano_plot(b=None):
-            
+
             volcano_box.clear_output()
             prog_bar = _create_progress_bar()
             with volcano_box:
