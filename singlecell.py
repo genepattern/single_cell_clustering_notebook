@@ -843,8 +843,8 @@ class SingleCellAnalysis:
     def _plot_pca(self):
         # mpl figure
         fig_elbow_plot = plt.figure(figsize=(7, 6))
-        #pc_var = self.data.uns['pca_variance_ratio']
-        pc_var = self.data.uns['pca']['variance_ratio']
+        pc_var = self.data.uns['pca_variance_ratio']
+        #pc_var = self.data.uns['pca']['variance_ratio']
         pc_var = pc_var[:min(len(pc_var), 30)]
 
         # Calculate percent variance explained
@@ -977,19 +977,22 @@ class SingleCellAnalysis:
             perplexity=perplexity,
             learning_rate=1000,
             n_jobs=8)
-        sc.pp.neighbors(
-            self.data,
-            n_neighbors=10)
+        #sc.pp.neighbors(
+        #    self.data,
+        #    n_neighbors=10)
         sc.tl.louvain(
             self.data,
+            n_neighbors=10,
             resolution=resolution,
+            recompute_graph=True
             )
 
-        self.data.obs['louvain']
+        self.data.obs['louvain_groups']
 
     def _plot_tsne(self, figsize):
         # Clusters
-        cell_clusters = self.data.obs['louvain'].astype(int)
+        #cell_clusters = self.data.obs['louvain'].astype(int)
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         num_clusters = len(cluster_names)
 
@@ -1041,7 +1044,7 @@ class SingleCellAnalysis:
                                 FutureWarning) if self.verbose else None
 
         ## Commonly used data
-        cell_clusters = self.data.obs['louvain'].astype(int)
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
         #heatmap_text = HTML('''
@@ -1206,7 +1209,7 @@ class SingleCellAnalysis:
         warnings.simplefilter('ignore',
                                 FutureWarning) if self.verbose else None
         # Commonly used data
-        cell_clusters = self.data.obs['louvain'].astype(int)
+        cell_clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = np.unique(cell_clusters).tolist()
         cluster_names.sort(key=int)
 
@@ -1320,7 +1323,7 @@ class SingleCellAnalysis:
     def _plot_violin_plots(self, gene, gene_values):
         fig = plt.figure(figsize=(8, 6))
         ax = plt.gca()
-        groups = self.data.obs['louvain']
+        groups = self.data.obs['louvain_groups']
         sns.stripplot(
             x=groups, y=gene_values, size=3, jitter=True, color='black', ax=ax)
         sns.violinplot(
@@ -1347,41 +1350,98 @@ class SingleCellAnalysis:
         # Perform test
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain',
+            'louvain_groups',
             groups=[ident_1],
             reference=ident_2,
             use_raw=True,
-            n_genes=len(self.data.var_names),
-            test_type=test,
-            rankby_abs=False,
-            only_positive=False,
-            corr_method='benjamini-hochberg'
-        )
+            n_genes=min(100, len(self.data.var_names)),
+            test_type=test)
 
-        marker_names = [x[0] for x in self.data.uns['rank_genes_groups']['names']]
-        pvals = [x[0] for x in self.data.uns['rank_genes_groups']['pvals_adj']]
-        marker_scores = [x[0] for x in self.data.uns['rank_genes_groups']['logfoldchanges']]
+        # Format results
+        marker_names = [
+            x[0] for x in self.data.uns['rank_genes_groups_gene_names']
+        ]
+        marker_scores = [
+            x[0] for x in self.data.uns['rank_genes_groups_gene_scores']
+        ]
 
+        # Convert to p-values
+        marker_scores = st.norm.sf(np.abs(marker_scores))
+        marker_scores = multipletests(
+            marker_scores, method='fdr_bh')[1].tolist()
+        marker_scores = ['%.3G' % x for x in marker_scores]
+
+        clusters = self.data.obs['louvain_groups'].astype(int)
+        is_ident_1 = (clusters == int(ident_1))
+        if ident_2 is not 'rest':
+            is_ident_2 = (clusters == int(ident_2))
+
+        # gene_locs = [self.data.raw.var_names.get_loc(gene) for gene in marker_names]
+        if type(self.data.raw.X) not in [np.array, np.ndarray]:
+            df = pd.DataFrame(
+                self.data.raw.X.toarray(),
+                index=self.data.obs_names,
+                columns=self.data.raw.var_names)
+        else:
+            df = pd.DataFrame(
+                self.data.raw.X,
+                index=self.data.obs_names,
+                columns=self.data.raw.var_names)
+
+        # Determine mean of each gene across each group
+        mean_1 = np.mean(df.loc[is_ident_1, marker_names])
+        if ident_2 == 'rest':
+            mean_2 = np.mean(df.loc[~is_ident_1, marker_names])
+        else:
+            mean_2 = np.mean(df.loc[is_ident_2, marker_names])
+
+        # Compute log fold change for each gene
+        log_fc = list(mean_1 / mean_2)
+        log_fc = ['%.2f' % v for v in log_fc]
+        log_fc = [float(x) for x in log_fc]
+        # Replace 'inf' with 0
+        log_fc = [0 if e == float('inf') else e for e in log_fc]
+
+        # Compute percent expressed in each group
+        pct_1 = (df.loc[is_ident_1, marker_names] > 0
+                 ).sum() / is_ident_1.sum() * 100
+        if ident_2 == 'rest':
+            pct_2 = (df.loc[~is_ident_1, marker_names] > 0).sum() / (
+                len(self.data.obs_names) - is_ident_1.sum()) * 100
+        else:
+            pct_2 = (df.loc[is_ident_2, marker_names] > 0
+                     ).sum() / is_ident_2.sum() * 100
+
+        # Format to 2 decimal places
+        pct_1 = ['%.2f' % e for e in pct_1]
+        pct_2 = ['%.2f' % e for e in pct_2]
+
+        # Return as interactive table
+        if ident_2 == 'rest':
+            pct_expr_2_prefix = '%.expr.'
+        else:
+            pct_expr_2_prefix = '%.expr.c'
         results = pd.DataFrame(
-            [marker_names, pvals, marker_scores],
+            [marker_names, marker_scores, log_fc, pct_1, pct_2],
             index=[
-                'Gene', 'adj.pval', 'logFC',
+                'Gene', 'adj.pval', 'logFC', '%.expr.c{}'.format(ident_1),
+                '{}{}'.format(pct_expr_2_prefix, ident_2)
             ]).T
         results.set_index(['Gene'], inplace=True)
-
         return results
 
     def _find_top_markers(self, n_markers, test):
         sc.tl.rank_genes_groups(
             self.data,
-            'louvain',
+            'louvain_groups',
             use_raw=True,
             n_genes=min(n_markers, len(self.data.var_names)),
             test_type=test)
 
         # genes sorted by top (rows), clusters (columns)
         markers_per_cluster = pd.DataFrame(
-            self.data.uns['rank_genes_groups']['names'])
+            #self.data.uns['rank_genes_groups']['names'])
+            self.data.uns['rank_genes_groups_gene_names'])
         markers = np.array([
             markers_per_cluster[c].values.tolist()
             for c in markers_per_cluster.columns
@@ -1389,7 +1449,7 @@ class SingleCellAnalysis:
         marker_locs = [self.data.raw.var_names.get_loc(m) for m in markers]
 
         # clusters
-        clusters = self.data.obs['louvain'].astype(int)
+        clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
@@ -1419,7 +1479,7 @@ class SingleCellAnalysis:
 
     def _plot_top_markers_heatmap(self, counts, group_labels):
         #clusters = self.data.obs['louvain_groups'].astype(int)
-        clusters = self.data.obs['louvain'].astype(int)
+        clusters = self.data.obs['louvain_groups'].astype(int)
         cluster_names = clusters.unique().tolist()
         cluster_names.sort(key=int)
 
