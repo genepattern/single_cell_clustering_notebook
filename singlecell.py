@@ -420,7 +420,7 @@ class SingleCellAnalysis:
 
         If data is a single matrix file, csv_filepath should be used
         and the other three variable names should be None. If data is in
-        10x format (mtx, gene, barcode), csv_filepath should be None
+        10x format (mtx, gene, barcode), csv_filepath should be None
         and the other three variables should be used correspondingly
         '''
         # Hide FutureWarnings.
